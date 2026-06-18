@@ -1287,7 +1287,13 @@
       function ensureAudio(){ if(audioCtx) return audioCtx; try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ audioCtx=null; } return audioCtx; }
       function startMusic(){
         var ctx=ensureAudio(); if(!ctx) return;
-        if(ctx.state==='suspended'){ try{ ctx.resume(); }catch(e){} }
+        if(ctx.state==='suspended'){ try{ ctx.resume(); }catch(e){}
+          // Fallback: if the browser still has audio suspended, resume on the next real interaction
+          var resumeOnce=function(){ try{ ctx.resume(); }catch(e){} document.removeEventListener('pointerdown',resumeOnce); document.removeEventListener('keydown',resumeOnce); document.removeEventListener('touchstart',resumeOnce); };
+          document.addEventListener('pointerdown',resumeOnce,{once:false});
+          document.addEventListener('keydown',resumeOnce,{once:false});
+          document.addEventListener('touchstart',resumeOnce,{once:false});
+        }
         if(musicNodes) return;
 
         var master=ctx.createGain(); master.gain.value=0.0001; master.connect(ctx.destination);
