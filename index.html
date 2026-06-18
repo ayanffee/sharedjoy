@@ -1282,22 +1282,54 @@
       document.getElementById('sentClose').addEventListener('click', function(){ sentModal.classList.remove('show'); });
       sentModal.addEventListener('click', function(e){ if(e.target===sentModal) sentModal.classList.remove('show'); });
 
-      /* ===== AMBIENT MUSIC (WebAudio pad) ===== */
-      var musicOn=false, audioCtx=null, musicNodes=null;
+      /* ===== AMBIENT MUSIC (WebAudio: warm pad + gentle arpeggio, clearly audible) ===== */
+      var musicOn=false, audioCtx=null, musicNodes=null, arpTimer=null;
       function ensureAudio(){ if(audioCtx) return audioCtx; try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ audioCtx=null; } return audioCtx; }
       function startMusic(){
         var ctx=ensureAudio(); if(!ctx) return;
-        if(ctx.state==='suspended') ctx.resume();
+        if(ctx.state==='suspended'){ try{ ctx.resume(); }catch(e){} }
         if(musicNodes) return;
-        var master=ctx.createGain(); master.gain.value=0.0; master.connect(ctx.destination);
-        var lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900; lp.connect(master);
-        var freqs=[220,277.18,329.63]; var oscs=freqs.map(function(f,i){ var o=ctx.createOscillator(); o.type='sine'; o.frequency.value=f; var g=ctx.createGain(); g.gain.value=0.12; o.connect(g); g.connect(lp); o.start(); return o; });
-        // gentle swell
-        master.gain.linearRampToValueAtTime(0.06, ctx.currentTime+2.5);
-        var lfo=ctx.createOscillator(); lfo.frequency.value=0.07; var lfoG=ctx.createGain(); lfoG.gain.value=0.025; lfo.connect(lfoG); lfoG.connect(master.gain); lfo.start();
-        musicNodes={ master:master, oscs:oscs, lfo:lfo, ctx:ctx };
+
+        var master=ctx.createGain(); master.gain.value=0.0001; master.connect(ctx.destination);
+        master.gain.exponentialRampToValueAtTime(0.5, ctx.currentTime+1.2); // clearly audible swell
+
+        var lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1800; lp.Q.value=0.6; lp.connect(master);
+
+        // Sustained warm chord pad (A2/E3/A3/C#4)
+        var pad=[110,164.81,220,277.18].map(function(f){
+          var o=ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
+          var g=ctx.createGain(); g.gain.value=0.09;
+          o.connect(g); g.connect(lp); o.start(); return o;
+        });
+        // slow shimmer on the filter for movement
+        var lfo=ctx.createOscillator(); lfo.frequency.value=0.08; var lfoG=ctx.createGain(); lfoG.gain.value=600;
+        lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start();
+
+        // Gentle arpeggio melody (pentatonic, soft plucks) on top
+        var notes=[440,554.37,659.25,554.37,493.88,659.25,587.33,493.88]; var step=0;
+        function pluck(){
+          if(!musicNodes) return;
+          var t=ctx.currentTime, f=notes[step%notes.length]; step++;
+          var o=ctx.createOscillator(); o.type='triangle'; o.frequency.value=f;
+          var g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t);
+          g.gain.exponentialRampToValueAtTime(0.22,t+0.03);
+          g.gain.exponentialRampToValueAtTime(0.0001,t+1.1);
+          o.connect(g); g.connect(lp); o.start(t); o.stop(t+1.2);
+        }
+        arpTimer=setInterval(pluck, 620); pluck();
+
+        musicNodes={ master:master, pad:pad, lfo:lfo, ctx:ctx };
       }
-      function stopMusic(){ if(!musicNodes) return; try{ var n=musicNodes; n.master.gain.linearRampToValueAtTime(0.0001, n.ctx.currentTime+0.6); setTimeout(function(){ try{ n.oscs.forEach(function(o){o.stop();}); n.lfo.stop(); }catch(e){} }, 700); }catch(e){} musicNodes=null; }
+      function stopMusic(){
+        if(arpTimer){ clearInterval(arpTimer); arpTimer=null; }
+        if(!musicNodes) return;
+        try{ var n=musicNodes; var t=n.ctx.currentTime;
+          n.master.gain.cancelScheduledValues(t); n.master.gain.setValueAtTime(n.master.gain.value||0.2,t);
+          n.master.gain.exponentialRampToValueAtTime(0.0001,t+0.5);
+          setTimeout(function(){ try{ n.pad.forEach(function(o){o.stop();}); n.lfo.stop(); }catch(e){} }, 600);
+        }catch(e){}
+        musicNodes=null;
+      }
       function setMusic(on){ musicOn=on; var b=document.getElementById('musicBtn'); if(b){ b.textContent='🎵 Music: '+(on?'On':'Off'); b.classList.toggle('on',on); b.setAttribute('aria-pressed', on?'true':'false'); } if(on) startMusic(); else stopMusic(); }
       var mb=document.getElementById('musicBtn'); if(mb) mb.addEventListener('click', function(){ setMusic(!musicOn); scheduleSave(); });
 
