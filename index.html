@@ -289,6 +289,11 @@
       background:radial-gradient(1000px 600px at 50% -10%, rgba(255,255,255,0.06), transparent), #2a2528; }
     body.play-mode .play-stage { display:flex; }
     .play-credit { position:absolute; bottom:18px; left:0; right:0; text-align:center; color:rgba(255,255,255,0.45); font-size:.72rem; letter-spacing:.04em; }
+    #playMute { position:absolute; top:18px; right:20px; z-index:5; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.25); color:#fff; border-radius:999px; width:42px; height:42px; font-size:1.1rem; cursor:pointer; }
+    #playMute:hover { background:rgba(255,255,255,0.24); }
+    .music-status { font-size:.7rem; margin-top:.5rem; color:rgba(58,52,56,0.5); }
+    .music-status.ok { color:#5C6B4F; }
+    .music-status.bad { color:#C9737E; }
 
     /* BOOT SPLASH — shown until we know editor vs recipient, so recipients never see the editor flash */
     body.booting #dashboard { display:none !important; }
@@ -407,6 +412,19 @@
           </div>
           <p class="text-[0.7rem] text-charcoal/40 mt-2">Backgrounds, highlights &amp; accents update across every screen.</p>
         </div>
+
+        <div class="panel mt-5">
+          <label class="field-label">Soundtrack &middot; paste a song link</label>
+          <input id="musicUrl" class="field" type="url" spellcheck="false" placeholder="YouTube, Spotify, or .mp3 link…" />
+          <div class="flex items-center gap-2 mt-2">
+            <label class="field-label" style="margin:0;">Start at</label>
+            <input id="musicStartEl" class="field" type="text" inputmode="numeric" placeholder="0:00" style="width:5.5rem; padding:.5rem .7rem;" />
+            <span class="text-[0.66rem] text-charcoal/40">mm:ss (optional)</span>
+          </div>
+          <div class="music-status" id="musicStatus"></div>
+          <p class="text-[0.66rem] text-charcoal/40 mt-1">YouTube &amp; direct audio play the full song and start on the envelope tap. Toggle with the 🎵 button.</p>
+        </div>
+
         <p class="text-charcoal/40 text-xs mt-4 max-w-[18rem] text-center">Uploaded photos are embedded in the link so recipients see them. Videos preview locally but don’t travel yet.</p>
       </section>
     </div>
@@ -414,6 +432,7 @@
 
   <!-- PLAY MODE (recipient) stage -->
   <div class="play-stage" id="playStage">
+    <button type="button" id="playMute" title="Mute / unmute music" style="display:none;">🔊</button>
     <div class="phone" id="playPhone">
       <div class="phone-notch"></div>
       <div class="phone-screen" id="playPhoneScreen">
@@ -421,6 +440,7 @@
         <div id="playStageHost"></div>
       </div>
     </div>
+    <div id="spotifyBar" style="display:none; width:300px; max-width:88vw; margin-top:.5rem;"></div>
     <div class="play-credit">Made with SharedJoy &middot; <a href="#" id="playCreate" style="color:#E8B4B8;text-decoration:underline;">create your own</a></div>
   </div>
 
@@ -1244,7 +1264,7 @@
           if(slot && slot[kind] && /^(https?:|data:image\/)/i.test(slot[kind].url) && slot[kind].url.length < 1500000) o.media={ kind:kind, url:slot[kind].url };
           items.push(o);
         });
-        return { v:1, id:currentLetterId||(currentLetterId=genId()), theme:currentTheme, music:musicOn, blocks:items };
+        return { v:1, id:currentLetterId||(currentLetterId=genId()), theme:currentTheme, music:{ on:musicOn, src:musicSrc, start:musicStart }, blocks:items };
       }
       function encodeState(s){ try{ return btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }catch(e){ return ''; } }
       function decodeState(str){ try{ return JSON.parse(decodeURIComponent(escape(atob(str)))); }catch(e){ return null; } }
@@ -1267,6 +1287,11 @@
           if(b.media && /^(https?:|data:image\/)/i.test(b.media.url)){ ensureSlots(id); mediaSlots[id][b.media.kind]={ url:b.media.url, isLocal:false }; kindPref[id]=b.media.kind; }
         });
         if(state.theme){ applyTheme(state.theme); markThemeSwatch(state.theme); }
+        // restore soundtrack (supports new {on,src,start} and legacy boolean)
+        if(state.music && typeof state.music==='object'){ musicOn=!!state.music.on; musicSrc=state.music.src||''; musicStart=state.music.start||0; }
+        else { musicOn=!!state.music; musicSrc=''; musicStart=0; }
+        if(typeof window.__sjSoundtrackRefresh==='function') window.__sjSoundtrackRefresh();
+        if(typeof musicLabel==='function') musicLabel();
         buildPreview();
       }
 
@@ -1385,10 +1410,44 @@
       document.getElementById('sentClose').addEventListener('click', function(){ sentModal.classList.remove('show'); });
       sentModal.addEventListener('click', function(e){ if(e.target===sentModal) sentModal.classList.remove('show'); });
 
-      /* ===== AMBIENT MUSIC (WebAudio: warm pad + gentle arpeggio, clearly audible) ===== */
-      var musicOn=false, audioCtx=null, musicNodes=null, arpTimer=null;
+      /* ===== SOUNDTRACK: creator's chosen song (YouTube / direct audio / Spotify) + ambient fallback ===== */
+      var musicOn=false, musicSrc='', musicStart=0, audioCtx=null, musicNodes=null, arpTimer=null, sjAudio=null;
+      function parseStart(v){ if(v==null) return 0; v=(''+v).trim(); if(!v) return 0; if(/^\d+$/.test(v)) return parseInt(v,10); var m=v.match(/^(\d{1,2}):(\d{1,2})$/); if(m) return parseInt(m[1],10)*60+parseInt(m[2],10); var f=parseFloat(v); return isNaN(f)?0:Math.round(f); }
+      function fmtStart(s){ s=Math.max(0,Math.round(s||0)); var m=Math.floor(s/60), ss=s%60; return m+':'+(ss<10?'0':'')+ss; }
+      function parseMusic(u){
+        if(!u) return null; u=(''+u).trim();
+        var yt=u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+        if(yt) return { kind:'youtube', id:yt[1] };
+        var sp=u.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|playlist|album|episode)\/([A-Za-z0-9]+)/) || u.match(/spotify:(track|playlist|album|episode):([A-Za-z0-9]+)/);
+        if(sp) return { kind:'spotify', sptype:sp[1], id:sp[2] };
+        if(/^https?:\/\//i.test(u)) return { kind:'audio', url:u };
+        return null;
+      }
+      function musicHost(){ var h=document.getElementById('musicHost'); if(!h){ h=document.createElement('div'); h.id='musicHost'; h.style.cssText='position:fixed;left:-10000px;bottom:0;width:320px;height:180px;opacity:0.01;pointer-events:none;overflow:hidden;'; document.body.appendChild(h); } return h; }
+      function spotifyBar(){ return document.getElementById('spotifyBar'); }
+      function clearExternalMusic(){ var h=document.getElementById('musicHost'); if(h) h.innerHTML=''; if(sjAudio){ try{ sjAudio.pause(); }catch(e){} } var sb=spotifyBar(); if(sb){ sb.innerHTML=''; sb.style.display='none'; } }
+      function startExternal(m){
+        clearExternalMusic();
+        var start=musicStart||0;
+        if(m.kind==='audio'){
+          sjAudio=document.createElement('audio'); sjAudio.src=m.url; sjAudio.loop=true; sjAudio.volume=0.85;
+          sjAudio.addEventListener('loadedmetadata', function(){ try{ if(start>0 && start<(sjAudio.duration||1e9)) sjAudio.currentTime=start; }catch(e){} });
+          // keep looping from the chosen start point
+          if(start>0) sjAudio.addEventListener('timeupdate', function(){ if(sjAudio.currentTime < start-0.4){ try{ sjAudio.currentTime=start; }catch(e){} } });
+          musicHost().appendChild(sjAudio); var p=sjAudio.play(); if(p&&p.catch) p.catch(function(){});
+        } else if(m.kind==='youtube'){
+          var f=document.createElement('iframe'); f.allow='autoplay; encrypted-media';
+          f.src='https://www.youtube.com/embed/'+m.id+'?autoplay=1&loop=1&playlist='+m.id+'&controls=0&modestbranding=1&playsinline=1'+(start>0?('&start='+start):'');
+          f.width='320'; f.height='180'; f.style.border='0'; musicHost().appendChild(f);
+        } else if(m.kind==='spotify'){
+          var sb=spotifyBar(); if(sb){ sb.innerHTML='<iframe style="border-radius:12px;border:0;width:100%;height:80px;" src="https://open.spotify.com/embed/'+m.sptype+'/'+m.id+'?utm_source=sharedjoy" allow="autoplay; encrypted-media" loading="lazy"></iframe>'; sb.style.display='block'; }
+        }
+      }
       function ensureAudio(){ if(audioCtx) return audioCtx; try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ audioCtx=null; } return audioCtx; }
       function startMusic(){
+        // If the creator chose a song, play that. Otherwise play the gentle ambient pad.
+        var m=parseMusic(musicSrc);
+        if(m){ startExternal(m); return; }
         var ctx=ensureAudio(); if(!ctx) return;
         if(ctx.state==='suspended'){ try{ ctx.resume(); }catch(e){}
           // Fallback: if the browser still has audio suspended, resume on the next real interaction
@@ -1430,6 +1489,7 @@
         musicNodes={ master:master, pad:pad, lfo:lfo, ctx:ctx };
       }
       function stopMusic(){
+        clearExternalMusic();
         if(arpTimer){ clearInterval(arpTimer); arpTimer=null; }
         if(!musicNodes) return;
         try{ var n=musicNodes; var t=n.ctx.currentTime;
@@ -1439,8 +1499,36 @@
         }catch(e){}
         musicNodes=null;
       }
-      function setMusic(on){ musicOn=on; var b=document.getElementById('musicBtn'); if(b){ b.textContent='🎵 Music: '+(on?'On':'Off'); b.classList.toggle('on',on); b.setAttribute('aria-pressed', on?'true':'false'); } if(on) startMusic(); else stopMusic(); }
+      function musicLabel(){ var b=document.getElementById('musicBtn'); if(!b) return; b.textContent='🎵 '+(musicOn?(musicSrc?'Song: On':'Ambient: On'):'Music: Off'); b.classList.toggle('on',musicOn); b.setAttribute('aria-pressed', musicOn?'true':'false'); }
+      function setMusic(on){ musicOn=on; musicLabel(); if(on) startMusic(); else stopMusic(); }
       var mb=document.getElementById('musicBtn'); if(mb) mb.addEventListener('click', function(){ setMusic(!musicOn); scheduleSave(); });
+
+      /* Soundtrack inputs (paste a link + optional start time) */
+      (function wireSoundtrack(){
+        var urlEl=document.getElementById('musicUrl'), startEl=document.getElementById('musicStartEl'), statusEl=document.getElementById('musicStatus');
+        if(!urlEl) return;
+        function refreshStatus(){
+          var m=parseMusic(musicSrc);
+          if(!musicSrc){ statusEl.textContent='No song yet — a gentle ambient tune plays by default.'; statusEl.className='music-status'; return; }
+          if(!m){ statusEl.textContent='Hmm, that link isn’t recognized. Use a YouTube, Spotify, or .mp3 link.'; statusEl.className='music-status bad'; return; }
+          if(m.kind==='youtube') statusEl.textContent='YouTube detected ✓ plays the full song.';
+          else if(m.kind==='audio') statusEl.textContent='Audio link detected ✓ plays the full song.';
+          else statusEl.textContent='Spotify detected — note: plays a 30s preview unless the listener is signed into Spotify.';
+          statusEl.className='music-status ok';
+        }
+        function apply(){
+          musicSrc=urlEl.value.trim(); musicStart=parseStart(startEl.value);
+          if(musicSrc && !musicOn) musicOn=true;
+          musicLabel(); refreshStatus(); scheduleSave();
+          // live re-preview if currently playing
+          if(musicOn){ stopMusic(); startMusic(); }
+        }
+        urlEl.addEventListener('input', apply);
+        startEl.addEventListener('input', function(){ musicStart=parseStart(startEl.value); scheduleSave(); if(musicOn){ stopMusic(); startMusic(); } });
+        // expose for restore
+        window.__sjSoundtrackRefresh=function(){ urlEl.value=musicSrc||''; startEl.value=musicStart?fmtStart(musicStart):''; refreshStatus(); };
+        refreshStatus();
+      })();
 
       /* ===== GENERATE LINK MODAL (saves to backend -> real short link; offline -> encoded hash) ===== */
       var modal=document.getElementById('modal');
@@ -1494,11 +1582,15 @@
       function leaveBoot(){ document.body.classList.remove('booting','play-loading'); }
       function enterPlayMode(state, slug){
         playMode=true; playSlug=slug||null; document.body.classList.add('play-mode'); leaveBoot();
-        buildFromState(state);
+        buildFromState(state); // restores musicOn / musicSrc / musicStart
         playStageHost.appendChild(pvStage); // relocate the live, fully-wired stage into the fullscreen player
         pvReset();
-        // start music (if the letter had it) on the first user gesture — the envelope tap
-        if(state.music){ playStageHost.addEventListener('click', function once(){ setMusic(true); playStageHost.removeEventListener('click', once); }, { once:true }); }
+        // start the soundtrack on the first user gesture (the envelope tap) — required for browser autoplay
+        if(musicOn){
+          var mute=document.getElementById('playMute');
+          playStage.addEventListener('click', function once(){ setMusic(true); if(mute) mute.style.display='block'; playStage.removeEventListener('click', once); }, { once:true });
+          if(mute){ mute.onclick=function(e){ e.stopPropagation(); setMusic(!musicOn); mute.textContent=musicOn?'🔊':'🔈'; }; }
+        }
       }
       function showPlayError(msg){ playMode=true; document.body.classList.add('play-mode'); leaveBoot(); playStageHost.innerHTML='<div style="color:#fff;text-align:center;padding:2rem;font-family:Cormorant Garamond,serif;font-size:1.1rem;">'+msg+'</div>'; }
       document.getElementById('playCreate').addEventListener('click', function(e){ e.preventDefault(); window.location.href=location.pathname; });
