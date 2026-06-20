@@ -289,10 +289,36 @@
       background:radial-gradient(1000px 600px at 50% -10%, rgba(255,255,255,0.06), transparent), #2a2528; }
     body.play-mode .play-stage { display:flex; }
     .play-credit { position:absolute; bottom:18px; left:0; right:0; text-align:center; color:rgba(255,255,255,0.45); font-size:.72rem; letter-spacing:.04em; }
+
+    /* BOOT SPLASH — shown until we know editor vs recipient, so recipients never see the editor flash */
+    body.booting #dashboard { display:none !important; }
+    #boot { position:fixed; inset:0; z-index:300; display:none; align-items:center; justify-content:center; flex-direction:column; gap:1rem;
+      background:radial-gradient(1100px 600px at 50% -10%, #FFFFFF 0%, rgba(255,255,255,0) 55%), radial-gradient(900px 700px at 80% 110%, #F7E6E3 0%, rgba(247,230,227,0) 55%), #FBF6F0; }
+    body.booting #boot, body.play-loading #boot { display:flex; }
+    .boot-dot { width:54px; height:54px; border-radius:50%; background:radial-gradient(circle at 30% 30%, #F7DDDF, #E8B4B8); box-shadow:0 12px 28px -10px rgba(232,180,184,0.8); animation:bootPulse 1.4s ease-in-out infinite; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.4rem; }
+    @keyframes bootPulse { 0%,100%{ transform:scale(1); opacity:.85; } 50%{ transform:scale(1.12); opacity:1; } }
+    .boot-text { font-family:'Cormorant Garamond',serif; font-size:1.15rem; color:rgba(58,52,56,0.6); }
+
+    /* CROP MODAL */
+    .crop-card { width:100%; max-width:23rem; background:#fff; border-radius:1.5rem; padding:1.4rem 1.4rem 1.2rem; box-shadow:0 40px 80px -30px rgba(58,52,56,0.5); }
+    .crop-stage { position:relative; width:286px; height:286px; margin:1rem auto .6rem; border-radius:14px; overflow:hidden; background:#1c191b; touch-action:none; user-select:none; }
+    .crop-stage img { position:absolute; left:0; top:0; -webkit-user-drag:none; user-drag:none; pointer-events:none; }
+    .crop-sel { position:absolute; box-shadow:0 0 0 9999px rgba(28,25,27,0.62); border:2px solid rgba(255,255,255,0.95); border-radius:8px; cursor:move; box-sizing:border-box; }
+    .crop-sel::after { content:''; position:absolute; inset:0; border-radius:6px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+    .crop-hint { text-align:center; font-size:.74rem; color:rgba(58,52,56,0.5); margin-bottom:.4rem; }
+    .crop-row { display:flex; align-items:center; gap:.6rem; margin:.5rem 0 .9rem; }
+    .crop-row label { font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(58,52,56,0.5); white-space:nowrap; }
+    .crop-row input[type=range] { flex:1; accent-color:#E8B4B8; }
+    .crop-actions { display:flex; gap:.6rem; }
+    .crop-actions button { flex:1; border:none; cursor:pointer; border-radius:.8rem; padding:.7rem 1rem; font-weight:600; font-size:.85rem; }
+    .crop-apply { background:#3A3438; color:#FBF6F0; }
+    .crop-cancel { background:#FBF1EE; color:#3A3438; }
   </style>
 </head>
 
-<body>
+<body class="booting">
+  <div id="boot"><div class="boot-dot">✦</div><div class="boot-text">opening a little moment…</div></div>
+
   <div class="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14" id="dashboard">
 
     <header class="mb-8">
@@ -406,6 +432,23 @@
         <button class="modal-close" id="draftsClose" style="margin:0;">Close</button>
       </div>
       <div class="scroll-list" id="draftsList"></div>
+    </div>
+  </div>
+
+  <!-- CROP MODAL -->
+  <div class="modal-overlay" id="cropModal">
+    <div class="crop-card">
+      <h3 class="font-serif text-2xl text-charcoal/90" style="text-align:center;">Frame your photo</h3>
+      <div class="crop-hint">Drag to reposition · the dimmed area won’t show</div>
+      <div class="crop-stage" id="cropStage">
+        <img id="cropImg" alt="" />
+        <div class="crop-sel" id="cropSel"></div>
+      </div>
+      <div class="crop-row"><label>Size</label><input type="range" id="cropSize" min="0" max="100" value="100" /></div>
+      <div class="crop-actions">
+        <button type="button" class="crop-cancel" id="cropCancel">Cancel</button>
+        <button type="button" class="crop-apply" id="cropApply">Use photo</button>
+      </div>
     </div>
   </div>
 
@@ -628,23 +671,83 @@
           img.src=u;
         }catch(e){ readAsDataURL(file,cb); }
       }
+      function dataURLtoBlob(d){ try{ var a=d.split(','),m=a[0].match(/:(.*?);/)[1],b=atob(a[1]),n=b.length,u=new Uint8Array(n); while(n--) u[n]=b.charCodeAt(n); return new Blob([u],{type:m}); }catch(e){ return null; } }
+
+      /* ===== CROP MODAL (drag to reposition, slider to resize the square; dim shows what won't show) ===== */
+      var cropState=null;
+      function layoutSel(){
+        var s=cropState; if(!s) return;
+        s.sel=Math.max(s.minSel, Math.min(s.maxSel, s.sel));
+        s.sx=Math.max(s.ix, Math.min(s.ix+s.iw-s.sel, s.sx));
+        s.sy=Math.max(s.iy, Math.min(s.iy+s.ih-s.sel, s.sy));
+        var sel=document.getElementById('cropSel');
+        sel.style.width=s.sel+'px'; sel.style.height=s.sel+'px'; sel.style.left=s.sx+'px'; sel.style.top=s.sy+'px';
+      }
+      function openCrop(file, cb){
+        var modal=document.getElementById('cropModal'), img=document.getElementById('cropImg'), sizeEl=document.getElementById('cropSize');
+        var url=URL.createObjectURL(file); var im=new Image();
+        im.onload=function(){
+          var ST=286, nw=im.naturalWidth||ST, nh=im.naturalHeight||ST;
+          var scale=Math.min(ST/nw, ST/nh); var iw=Math.round(nw*scale), ih=Math.round(nh*scale);
+          var ix=Math.round((ST-iw)/2), iy=Math.round((ST-ih)/2);
+          img.src=url; img.style.width=iw+'px'; img.style.height=ih+'px'; img.style.left=ix+'px'; img.style.top=iy+'px';
+          var maxSel=Math.min(iw,ih); var minSel=Math.max(70, Math.round(maxSel*0.5)); // keep it cute: never below ~50%
+          cropState={ url:url, im:im, nw:nw, nh:nh, iw:iw, ih:ih, ix:ix, iy:iy, maxSel:maxSel, minSel:minSel,
+                      sel:maxSel, sx:ix+(iw-maxSel)/2, sy:iy+(ih-maxSel)/2, cb:cb };
+          sizeEl.value=100; layoutSel(); modal.classList.add('show');
+        };
+        im.onerror=function(){ try{ URL.revokeObjectURL(url); }catch(e){} cb(null); };
+        im.src=url;
+      }
+      function closeCrop(){ var m=document.getElementById('cropModal'); m.classList.remove('show'); if(cropState){ try{ URL.revokeObjectURL(cropState.url); }catch(e){} } cropState=null; }
+      (function wireCrop(){
+        var sizeEl=document.getElementById('cropSize'), sel=document.getElementById('cropSel'); if(!sizeEl||!sel) return;
+        sizeEl.addEventListener('input', function(){ var s=cropState; if(!s) return; var cx=s.sx+s.sel/2, cy=s.sy+s.sel/2; var t=parseInt(this.value,10)/100; s.sel=Math.round(s.minSel+(s.maxSel-s.minSel)*t); s.sx=cx-s.sel/2; s.sy=cy-s.sel/2; layoutSel(); });
+        var drag=null; function ptOf(e){ var t=e.touches&&e.touches[0]; return { x:(t?t.clientX:e.clientX), y:(t?t.clientY:e.clientY) }; }
+        function down(e){ if(!cropState) return; var p=ptOf(e); drag={x:p.x,y:p.y,sx:cropState.sx,sy:cropState.sy}; e.preventDefault(); }
+        function move(e){ if(!drag||!cropState) return; var p=ptOf(e); cropState.sx=drag.sx+(p.x-drag.x); cropState.sy=drag.sy+(p.y-drag.y); layoutSel(); }
+        function up(){ drag=null; }
+        sel.addEventListener('mousedown',down); document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+        sel.addEventListener('touchstart',down,{passive:false}); document.addEventListener('touchmove',move,{passive:false}); document.addEventListener('touchend',up);
+        document.getElementById('cropCancel').addEventListener('click', function(){ var cb=cropState&&cropState.cb; closeCrop(); if(cb) cb(null); });
+        document.getElementById('cropApply').addEventListener('click', function(){
+          var s=cropState; if(!s) return; var cb=s.cb;
+          try{
+            var OUT=760, natScale=s.nw/s.iw;
+            var cropNX=(s.sx-s.ix)*natScale, cropNY=(s.sy-s.iy)*natScale, cropN=s.sel*natScale;
+            var cv=document.createElement('canvas'); cv.width=OUT; cv.height=OUT;
+            cv.getContext('2d').drawImage(s.im, cropNX, cropNY, cropN, cropN, 0,0, OUT, OUT);
+            var out=cv.toDataURL('image/jpeg',0.85); closeCrop(); cb(out||null);
+          }catch(e){ closeCrop(); cb(null); }
+        });
+      })();
+
+      /* ===== FILE HANDLING (images go through crop; everything kept shareable so links never drop media) ===== */
+      var pendingUploads=0;
       function handleFile(id,file){
         if(!file) return; var title=document.getElementById('dz-title-'+id);
         var isImg=/^image\//.test(file.type), isVid=/^video\//.test(file.type);
         if(!isImg&&!isVid){ if(title) title.textContent='Unsupported file — use an image or video'; return; }
-        var kind=isVid?'video':'image';
-        // Optimistic local preview immediately
-        var localUrl=URL.createObjectURL(file);
-        setScreenMedia(id, localUrl, kind, { isLocal:true, label: shortLabel(file.name) });
-        if(title) title.textContent='Uploading…';
-        function fallback(){
-          if(isImg){ imageToDataURL(file, function(dataUrl){ if(dataUrl) setScreenMedia(id, dataUrl, 'image', { isLocal:true, label: shortLabel(file.name) }); }); }
-          var sub=document.getElementById('dz-sub-'+id); if(sub && isVid) sub.textContent='Offline — video won’t travel in link';
+        if(isImg){
+          openCrop(file, function(dataUrl){
+            if(!dataUrl) return; // cancelled
+            // The cropped data URL is set immediately, so the image ALWAYS travels in the saved letter
+            setScreenMedia(id, dataUrl, 'image', { isLocal:false, label: shortLabel(file.name) });
+            // Background: upload to storage to keep the saved letter lightweight, then swap to the hosted URL
+            if(SB_ON){ var blob=dataURLtoBlob(dataUrl); if(blob){ try{ blob.name='photo.jpg'; }catch(e){} pendingUploads++;
+              sbUpload(blob).then(function(url){ setScreenMedia(id, url, 'image', { isLocal:false, label: shortLabel(file.name) }); })
+                .catch(function(){}).then(function(){ pendingUploads=Math.max(0,pendingUploads-1); }); } }
+          });
+          return;
         }
-        if(SB_ON){
-          sbUpload(file).then(function(url){ setScreenMedia(id, url, kind, { isLocal:false, label: shortLabel(file.name) }); })
-            .catch(function(){ fallback(); });
-        } else { fallback(); }
+        // video — must be hosted to travel; preview locally meanwhile
+        setScreenMedia(id, URL.createObjectURL(file), 'video', { isLocal:true, label: shortLabel(file.name) });
+        if(title) title.textContent='Uploading video…';
+        if(SB_ON){ pendingUploads++;
+          sbUpload(file).then(function(url){ setScreenMedia(id, url, 'video', { isLocal:false, label: shortLabel(file.name) }); })
+            .catch(function(){ var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent='Upload failed — try again'; })
+            .then(function(){ pendingUploads=Math.max(0,pendingUploads-1); });
+        } else { var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent='Offline — video won’t travel in link'; }
       }
       function wireMedia(id){
         kindPref[id]=kindPref[id]||'image';
@@ -1343,11 +1446,14 @@
       var modal=document.getElementById('modal');
       var lastPublish=null;
       function offlineLink(st){ return location.href.split(/[#?]/)[0]+'#play='+encodeState(st); }
+      function waitForUploads(done){ if(pendingUploads<=0) return done(); var n=0; var iv=setInterval(function(){ n++; if(pendingUploads<=0||n>40){ clearInterval(iv); done(); } }, 250); }
       document.getElementById('generateBtn').addEventListener('click', function(){
-        var st=serializeState();
         var c=document.getElementById('copyBtn'); c.textContent='Copy Link'; c.classList.remove('copied');
         var linkEl=document.getElementById('magicLink');
         modal.classList.add('show');
+        linkEl.textContent = pendingUploads>0 ? 'Finishing media upload…' : 'Generating your link…';
+        waitForUploads(function(){
+        var st=serializeState();
         if(SB_ON){
           linkEl.textContent='Generating your link…';
           sbCreateLetter(st).then(function(res){
@@ -1364,6 +1470,7 @@
         } else {
           linkEl.textContent=offlineLink(st);
         }
+        }); // end waitForUploads
       });
       function hideModal(){ modal.classList.remove('show'); }
       document.getElementById('modalClose').addEventListener('click', hideModal);
@@ -1384,20 +1491,27 @@
       var playStage=document.getElementById('playStage');
       var playStageHost=document.getElementById('playStageHost');
       var playSlug=null; // set when playing a server-published letter (enables cross-device RSVP)
+      function leaveBoot(){ document.body.classList.remove('booting','play-loading'); }
       function enterPlayMode(state, slug){
-        playMode=true; playSlug=slug||null; document.body.classList.add('play-mode');
+        playMode=true; playSlug=slug||null; document.body.classList.add('play-mode'); leaveBoot();
         buildFromState(state);
         playStageHost.appendChild(pvStage); // relocate the live, fully-wired stage into the fullscreen player
         pvReset();
         // start music (if the letter had it) on the first user gesture — the envelope tap
         if(state.music){ playStageHost.addEventListener('click', function once(){ setMusic(true); playStageHost.removeEventListener('click', once); }, { once:true }); }
       }
-      function showPlayError(msg){ playMode=true; document.body.classList.add('play-mode'); playStageHost.innerHTML='<div style="color:#fff;text-align:center;padding:2rem;font-family:Cormorant Garamond,serif;font-size:1.1rem;">'+msg+'</div>'; }
+      function showPlayError(msg){ playMode=true; document.body.classList.add('play-mode'); leaveBoot(); playStageHost.innerHTML='<div style="color:#fff;text-align:center;padding:2rem;font-family:Cormorant Garamond,serif;font-size:1.1rem;">'+msg+'</div>'; }
       document.getElementById('playCreate').addEventListener('click', function(e){ e.preventDefault(); window.location.href=location.pathname; });
 
       (function init(){
         var qs=new URLSearchParams(location.search||'');
         var slug=qs.get('l');
+        var isPlay = !!slug || /[#&]play=/.test(location.hash||'');
+        // Recipients should NEVER see the editor: keep it hidden, show the boot splash until the letter is ready
+        if(isPlay){ document.body.classList.add('play-loading'); }
+        // safety net: never leave a recipient on a blank splash forever
+        setTimeout(function(){ if(document.body.classList.contains('booting')||document.body.classList.contains('play-loading')){ if(!playMode){ /* still loading */ } } }, 14000);
+
         // 1) Server-published letter (real short link)
         if(slug && SB_ON){
           applyTheme('cream');
@@ -1412,7 +1526,7 @@
         var m=hash.match(/[#&]play=([^&]+)/);
         if(m){ var st=decodeState(decodeURIComponent(m[1])); if(st){ applyTheme(st.theme||'cream'); enterPlayMode(st, null); return; } }
         // 3) Editor mode: restore autosave if present, else default preset
-        applyTheme('cream');
+        applyTheme('cream'); leaveBoot();
         var saved=LSget('sj:autosave'); var ok=false;
         if(saved){ try{ var s=JSON.parse(saved); if(s&&s.blocks&&s.blocks.length){ buildFromState(s); flashSaved('Restored your last draft'); ok=true; } }catch(e){} }
         if(!ok){ currentLetterId=genId(); applyPreset('gratitude'); }
