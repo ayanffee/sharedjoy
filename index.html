@@ -669,7 +669,7 @@
         kindPref[id]=kind;
         var tabs=document.querySelector('[data-tabs="'+id+'"]');
         if(tabs){ tabs.querySelectorAll('.mtab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-mtab')===kind); });
-          var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent= kind==='video'?'MP4/MOV · up to ~48MB':'PNG, JPG, JPEG, GIF'; }
+          var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent= kind==='video'?'MP4/MOV · big clips auto-shrink':'PNG, JPG, JPEG, GIF'; }
         renderActive(id); scheduleSave();
       }
       function shortLabel(name){ return name && name.length>22 ? name.slice(0,20)+'…' : (name||''); }
@@ -743,6 +743,46 @@
         });
       })();
 
+      /* ===== VIDEO COMPRESSION (in-browser, downscale + re-encode so large clips fit under the cap) ===== */
+      function pickRecMime(){ var c=['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']; for(var i=0;i<c.length;i++){ try{ if(window.MediaRecorder && MediaRecorder.isTypeSupported(c[i])) return c[i]; }catch(e){} } return ''; }
+      function compressVideo(file, onProg, cb){
+        // No MediaRecorder/canvas capture -> return original untouched
+        if(!window.MediaRecorder){ return cb(file); }
+        var mime=pickRecMime(); if(!mime){ return cb(file); }
+        var url; try{ url=URL.createObjectURL(file); }catch(e){ return cb(file); }
+        var vid=document.createElement('video'); vid.muted=true; vid.playsInline=true; vid.preload='auto'; vid.src=url;
+        var done=false; function finish(b){ if(done) return; done=true; try{ URL.revokeObjectURL(url); }catch(e){} cb(b); }
+        vid.onerror=function(){ finish(file); };
+        vid.onloadedmetadata=function(){
+          try{
+            var dur=vid.duration||0;
+            var maxDim=720, w=vid.videoWidth||maxDim, h=vid.videoHeight||maxDim;
+            var scale=Math.min(1, maxDim/Math.max(w,h));
+            var cw=Math.max(2,Math.round(w*scale/2)*2), ch=Math.max(2,Math.round(h*scale/2)*2);
+            var cv=document.createElement('canvas'); cv.width=cw; cv.height=ch; var ctx=cv.getContext('2d');
+            if(!cv.captureStream){ return finish(file); }
+            var stream=cv.captureStream(30);
+            var rec; try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:1500000 }); }
+            catch(e){ try{ rec=new MediaRecorder(stream,{ mimeType:mime }); }catch(e2){ return finish(file); } }
+            var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
+            rec.onstop=function(){
+              var ext=mime.indexOf('mp4')>-1?'.mp4':'.webm';
+              var out=new Blob(chunks,{type:mime.split(';')[0]});
+              try{ out.name=(file.name||'video').replace(/\.[^.]+$/,'')+ext; }catch(e){}
+              // if compression somehow made it bigger, keep the smaller original
+              finish(out.size && out.size<file.size ? out : file);
+            };
+            var raf=0; function draw(){ if(done) return; if(vid.paused||vid.ended){ return; } try{ ctx.drawImage(vid,0,0,cw,ch); }catch(e){} if(onProg&&dur) onProg(Math.min(0.99, vid.currentTime/dur)); raf=requestAnimationFrame(draw); }
+            vid.onended=function(){ try{ if(rec.state!=='inactive') rec.stop(); }catch(e){} };
+            vid.onplay=function(){ draw(); };
+            try{ rec.start(1000); }catch(e){ return finish(file); }
+            var pp=vid.play(); if(pp&&pp.catch) pp.catch(function(){ finish(file); });
+            // hard cap so it can't hang forever
+            setTimeout(function(){ if(!done){ try{ vid.pause(); if(rec.state!=='inactive') rec.stop(); }catch(e){} } }, Math.min(20*60,(dur||90)+5)*1000);
+          }catch(e){ finish(file); }
+        };
+      }
+
       /* ===== FILE HANDLING (images go through crop; everything kept shareable so links never drop media) ===== */
       var pendingUploads=0;
       function handleFile(id,file){
@@ -761,23 +801,44 @@
           });
           return;
         }
-        // video — must be hosted to travel; preview locally meanwhile
+        // video — show a local preview right away
         var sub=document.getElementById('dz-sub-'+id);
-        var sizeMB=file.size/1048576;
-        if(sizeMB>MAX_VIDEO_MB){
-          // too big for the host — keep a local preview but tell them clearly
-          setScreenMedia(id, URL.createObjectURL(file), 'video', { isLocal:true, label: shortLabel(file.name) });
-          if(title) title.textContent='Video too large ('+Math.round(sizeMB)+'MB)';
-          if(sub) sub.textContent='Max ~'+MAX_VIDEO_MB+'MB. Trim/compress it so it can be sent.';
-          return;
-        }
         setScreenMedia(id, URL.createObjectURL(file), 'video', { isLocal:true, label: shortLabel(file.name) });
-        if(title) title.textContent='Uploading video…';
-        if(SB_ON){ pendingUploads++;
-          sbUpload(file).then(function(url){ setScreenMedia(id, url, 'video', { isLocal:false, label: shortLabel(file.name) }); if(sub) sub.textContent='Video ready ✓'; })
+
+        function uploadVideo(theFile){
+          var mb=theFile.size/1048576;
+          if(mb>MAX_VIDEO_MB){
+            if(title) title.textContent='Still too large ('+Math.round(mb)+'MB)';
+            if(sub) sub.textContent='Even after shrinking it’s over ~'+MAX_VIDEO_MB+'MB. Trim it shorter and retry.';
+            return;
+          }
+          if(!SB_ON){ if(sub) sub.textContent='Offline — video won’t travel in link'; return; }
+          if(title) title.textContent='Uploading video…';
+          pendingUploads++;
+          sbUpload(theFile).then(function(url){ setScreenMedia(id, url, 'video', { isLocal:false, label: shortLabel(theFile.name||file.name) }); if(sub) sub.textContent='Video ready ✓'; })
             .catch(function(err){ if(sub) sub.textContent=(''+(err&&err.message)).indexOf('413')>-1?('Too large — keep under ~'+MAX_VIDEO_MB+'MB'):'Upload failed — check connection & retry'; })
             .then(function(){ pendingUploads=Math.max(0,pendingUploads-1); });
-        } else { if(sub) sub.textContent='Offline — video won’t travel in link'; }
+        }
+
+        var sizeMB=file.size/1048576;
+        // Compress large clips in-browser (downscale + re-encode) so they fit under the host cap
+        if(sizeMB>20 && window.MediaRecorder){
+          if(title) title.textContent='Compressing video… 0%';
+          pendingUploads++; // hold link generation while we shrink
+          compressVideo(file, function(p){ if(title) title.textContent='Compressing video… '+Math.round(p*100)+'%'; }, function(result){
+            pendingUploads=Math.max(0,pendingUploads-1);
+            if(title) title.textContent='Uploading video…';
+            uploadVideo(result||file);
+          });
+          return;
+        }
+        // small enough already
+        if(sizeMB>MAX_VIDEO_MB){
+          if(title) title.textContent='Video too large ('+Math.round(sizeMB)+'MB)';
+          if(sub) sub.textContent='Max ~'+MAX_VIDEO_MB+'MB. Trim it shorter and retry.';
+          return;
+        }
+        uploadVideo(file);
       }
       function wireMedia(id){
         kindPref[id]=kindPref[id]||'image';
@@ -789,7 +850,7 @@
         if(tabs){ tabs.querySelectorAll('.mtab').forEach(function(b){ b.addEventListener('click',function(e){ e.stopPropagation();
           var kind=b.getAttribute('data-mtab'); kindPref[id]=kind;
           tabs.querySelectorAll('.mtab').forEach(function(x){ x.classList.toggle('active', x===b); });
-          var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent= kind==='video'?'MP4/MOV · up to ~48MB':'PNG, JPG, JPEG, GIF';
+          var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent= kind==='video'?'MP4/MOV · big clips auto-shrink':'PNG, JPG, JPEG, GIF';
           renderActive(id); // swap preview frame between img/video for this kind
         }); }); }
         if(zone){ zone.addEventListener('click',function(){ fileInput.click(); });
@@ -1549,7 +1610,7 @@
       var modal=document.getElementById('modal');
       var lastPublish=null;
       function offlineLink(st){ return location.href.split(/[#?]/)[0]+'#play='+encodeState(st); }
-      function waitForUploads(done){ if(pendingUploads<=0) return done(); var n=0; var iv=setInterval(function(){ n++; if(pendingUploads<=0||n>40){ clearInterval(iv); done(); } }, 250); }
+      function waitForUploads(done){ if(pendingUploads<=0) return done(); var n=0; var iv=setInterval(function(){ n++; if(pendingUploads<=0||n>1200){ clearInterval(iv); done(); } }, 250); } // wait up to ~5 min (video compress + upload)
       document.getElementById('generateBtn').addEventListener('click', function(){
         var c=document.getElementById('copyBtn'); c.textContent='Copy Link'; c.classList.remove('copied');
         var linkEl=document.getElementById('magicLink');
