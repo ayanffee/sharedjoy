@@ -751,7 +751,9 @@
         var mime=pickRecMime(); if(!mime){ return cb(file); }
         var url; try{ url=URL.createObjectURL(file); }catch(e){ return cb(file); }
         var vid=document.createElement('video'); vid.muted=true; vid.playsInline=true; vid.preload='auto'; vid.src=url;
-        var done=false; function finish(b){ if(done) return; done=true; try{ URL.revokeObjectURL(url); }catch(e){} cb(b); }
+        var done=false, startGuard=0; function finish(b){ if(done) return; done=true; if(startGuard){ try{ clearTimeout(startGuard); }catch(e){} } try{ URL.revokeObjectURL(url); }catch(e){} cb(b); }
+        // Watchdog: if metadata/playback never starts (e.g. tab backgrounded, odd codec), fall back to the original so nothing hangs
+        startGuard=setTimeout(function(){ if(!done && (!vid.duration || vid.readyState<1 || vid.currentTime===0)) finish(file); }, 30000);
         vid.onerror=function(){ finish(file); };
         vid.onloadedmetadata=function(){
           try{
