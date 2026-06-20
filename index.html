@@ -636,6 +636,8 @@
       /* ===== MEDIA (Photo / Video, per block, with live img/video swap) ===== */
       var mediaSlots={};  // id -> { image:{url,isLocal,label}|null, video:{...}|null }
       var kindPref={};    // id -> 'image' | 'video' (active tab)
+      var ACCEPT_ALL='image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime';
+      var MAX_VIDEO_MB=48; // Supabase upload cap is ~50MB
       function pvFrame(id){ return document.querySelector('[data-media-for="pv-img-'+id+'"]'); }
       function ensureSlots(id){ if(!mediaSlots[id]) mediaSlots[id]={image:null,video:null}; return mediaSlots[id]; }
       function mediaMarkup(url,kind){
@@ -667,8 +669,7 @@
         kindPref[id]=kind;
         var tabs=document.querySelector('[data-tabs="'+id+'"]');
         if(tabs){ tabs.querySelectorAll('.mtab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-mtab')===kind); });
-          var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent= kind==='video'?'MP4, WEBM, OGG':'PNG, JPG, JPEG, GIF';
-          var fi=document.getElementById('file-'+id); if(fi) fi.setAttribute('accept', kind==='video'?'video/mp4,video/webm,video/ogg':'image/png,image/jpeg,image/gif'); }
+          var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent= kind==='video'?'MP4/MOV · up to ~48MB':'PNG, JPG, JPEG, GIF'; }
         renderActive(id); scheduleSave();
       }
       function shortLabel(name){ return name && name.length>22 ? name.slice(0,20)+'…' : (name||''); }
@@ -761,13 +762,22 @@
           return;
         }
         // video — must be hosted to travel; preview locally meanwhile
+        var sub=document.getElementById('dz-sub-'+id);
+        var sizeMB=file.size/1048576;
+        if(sizeMB>MAX_VIDEO_MB){
+          // too big for the host — keep a local preview but tell them clearly
+          setScreenMedia(id, URL.createObjectURL(file), 'video', { isLocal:true, label: shortLabel(file.name) });
+          if(title) title.textContent='Video too large ('+Math.round(sizeMB)+'MB)';
+          if(sub) sub.textContent='Max ~'+MAX_VIDEO_MB+'MB. Trim/compress it so it can be sent.';
+          return;
+        }
         setScreenMedia(id, URL.createObjectURL(file), 'video', { isLocal:true, label: shortLabel(file.name) });
         if(title) title.textContent='Uploading video…';
         if(SB_ON){ pendingUploads++;
-          sbUpload(file).then(function(url){ setScreenMedia(id, url, 'video', { isLocal:false, label: shortLabel(file.name) }); })
-            .catch(function(){ var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent='Upload failed — try again'; })
+          sbUpload(file).then(function(url){ setScreenMedia(id, url, 'video', { isLocal:false, label: shortLabel(file.name) }); if(sub) sub.textContent='Video ready ✓'; })
+            .catch(function(err){ if(sub) sub.textContent=(''+(err&&err.message)).indexOf('413')>-1?('Too large — keep under ~'+MAX_VIDEO_MB+'MB'):'Upload failed — check connection & retry'; })
             .then(function(){ pendingUploads=Math.max(0,pendingUploads-1); });
-        } else { var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent='Offline — video won’t travel in link'; }
+        } else { if(sub) sub.textContent='Offline — video won’t travel in link'; }
       }
       function wireMedia(id){
         kindPref[id]=kindPref[id]||'image';
@@ -775,11 +785,11 @@
         var zone=document.querySelector('.dropzone[data-screen="'+id+'"]');
         var memeBtn=document.querySelector('.meme-btn[data-screen="'+id+'"]');
         var tabs=document.querySelector('[data-tabs="'+id+'"]');
+        if(fileInput) fileInput.setAttribute('accept', ACCEPT_ALL); // always allow picking a photo OR a video
         if(tabs){ tabs.querySelectorAll('.mtab').forEach(function(b){ b.addEventListener('click',function(e){ e.stopPropagation();
           var kind=b.getAttribute('data-mtab'); kindPref[id]=kind;
           tabs.querySelectorAll('.mtab').forEach(function(x){ x.classList.toggle('active', x===b); });
-          if(fileInput) fileInput.setAttribute('accept', kind==='video'?'video/mp4,video/webm,video/ogg':'image/png,image/jpeg,image/gif');
-          var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent= kind==='video'?'MP4, WEBM, OGG':'PNG, JPG, JPEG, GIF';
+          var sub=document.getElementById('dz-sub-'+id); if(sub) sub.textContent= kind==='video'?'MP4/MOV · up to ~48MB':'PNG, JPG, JPEG, GIF';
           renderActive(id); // swap preview frame between img/video for this kind
         }); }); }
         if(zone){ zone.addEventListener('click',function(){ fileInput.click(); });
@@ -851,7 +861,7 @@
             '<button type="button" class="mtab active" data-mtab="image" data-screen="'+id+'">📷 Photo</button>'+
             '<button type="button" class="mtab" data-mtab="video" data-screen="'+id+'">🎬 Video</button>'+
           '</div>'+
-          '<input type="file" id="file-'+id+'" class="hidden-file" accept="image/png,image/jpeg,image/gif" />'+
+          '<input type="file" id="file-'+id+'" class="hidden-file" accept="'+ACCEPT_ALL+'" />'+
           '<div class="dropzone" data-screen="'+id+'">'+
             '<div class="dz-thumb" id="thumb-'+id+'">'+PH_SVG+'</div>'+
             '<div class="dz-text"><div class="dz-title" id="dz-title-'+id+'">Choose a photo or drag &amp; drop</div><div class="dz-sub" id="dz-sub-'+id+'">PNG, JPG, JPEG, GIF</div></div>'+
