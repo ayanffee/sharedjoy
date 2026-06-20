@@ -1150,8 +1150,13 @@
         pvReset();                            // start the journey from the beginning (envelope closed)
         flowModal.classList.add('show'); flowOpen=true;
         document.body.style.overflow='hidden';
+        // Play the soundtrack on the first tap inside the preview (browser autoplay needs a gesture)
+        if(musicOn){
+          flowModal.addEventListener('click', function once(){ setMusic(true); flowModal.removeEventListener('click', once); }, { once:true });
+        }
       }
       function closeFullFlow(){
+        stopMusic();                          // don't let the preview's music keep playing behind the editor
         sideStageHost.appendChild(pvStage);   // move it back into the side preview
         pvReset();
         flowModal.classList.remove('show'); flowOpen=false;
@@ -1520,11 +1525,11 @@
           musicSrc=urlEl.value.trim(); musicStart=parseStart(startEl.value);
           if(musicSrc && !musicOn) musicOn=true;
           musicLabel(); refreshStatus(); scheduleSave();
-          // live re-preview if currently playing
-          if(musicOn){ stopMusic(); startMusic(); }
+          // if music is actively sounding, refresh it to the new track; otherwise just save (plays in preview / recipient / on 🎵)
+          if(musicOn && (musicNodes||sjAudio||document.querySelector('#musicHost iframe'))){ stopMusic(); startMusic(); }
         }
         urlEl.addEventListener('input', apply);
-        startEl.addEventListener('input', function(){ musicStart=parseStart(startEl.value); scheduleSave(); if(musicOn){ stopMusic(); startMusic(); } });
+        startEl.addEventListener('input', function(){ musicStart=parseStart(startEl.value); scheduleSave(); if(musicNodes||sjAudio||document.querySelector('#musicHost iframe')){ stopMusic(); startMusic(); } });
         // expose for restore
         window.__sjSoundtrackRefresh=function(){ urlEl.value=musicSrc||''; startEl.value=musicStart?fmtStart(musicStart):''; refreshStatus(); };
         refreshStatus();
