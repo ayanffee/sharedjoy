@@ -342,10 +342,34 @@
     .btn-pay { width:100%; margin-top:1rem; border:none; cursor:pointer; border-radius:.85rem; padding:.9rem 1rem; font-weight:700; font-size:.95rem; background:#3A3438; color:#FBF6F0; }
     .btn-pay:hover { filter:brightness(1.08); }
     .pw-note { font-size:.72rem; color:rgba(58,52,56,0.5); text-align:center; margin-top:.7rem; }
+    /* fixed account dock (top-right) */
+    #accountDock { position:fixed; top:.85rem; right:1rem; z-index:60; }
+    #accountDock .ws-btn { background:#FBF6F0; box-shadow:0 4px 14px -6px rgba(58,52,56,0.35); }
+    body.booting #accountDock, body.play-loading #accountDock, body.play-mode #accountDock { display:none; }
+    @media (max-width:640px){ #accountDock { top:.5rem; right:.5rem; } }
+    /* per-screen interaction editor */
+    .intr { border:1px dashed rgba(58,52,56,0.18); border-radius:.9rem; padding:.6rem; margin:.1rem 0 1rem; background:rgba(251,241,238,0.35); }
+    .intr-types { display:flex; flex-wrap:wrap; gap:.4rem; }
+    .itype { border:1px solid rgba(58,52,56,0.14); background:#fff; color:rgba(58,52,56,0.7); border-radius:.7rem; padding:.4rem .65rem; font-size:.78rem; font-weight:500; cursor:pointer; transition:all .15s; }
+    .itype:hover { border-color:#E8B4B8; }
+    .itype.active { background:#3A3438; color:#FBF6F0; border-color:#3A3438; }
+    .intr-body { margin-top:.6rem; display:flex; flex-direction:column; gap:.5rem; }
+    .intr-opts { display:flex; flex-direction:column; gap:.45rem; }
+    /* preview: interaction prompt + vote + short answer */
+    .pv-iq { font-size:.98rem; font-weight:600; color:var(--pv-text); text-align:center; margin:.2rem auto 1rem; max-width:16rem; }
+    .pv-vote { display:flex; flex-direction:column; gap:.5rem; width:100%; max-width:15rem; margin:0 auto 1.3rem; }
+    .pv-vote-opt { width:100%; background:var(--pv-card-bg); border:1px solid rgba(58,52,56,0.14); color:var(--pv-text); border-radius:.85rem; padding:.7rem .9rem; font-size:.82rem; cursor:pointer; transition:all .18s; }
+    .pv-vote-opt:hover { border-color:var(--pv-accent); }
+    .pv-vote-opt.selected { background:var(--pv-accent); color:#fff; border-color:var(--pv-accent); }
+    .pv-short { display:flex; gap:.4rem; width:100%; max-width:15rem; margin:0 auto 1.3rem; }
+    .pv-short-in { flex:1; min-width:0; background:var(--pv-card-bg); border:1px solid rgba(58,52,56,0.14); color:var(--pv-text); border-radius:.85rem; padding:.65rem .8rem; font-size:.82rem; }
+    .pv-short-send { background:var(--pv-accent); color:#fff; border:none; border-radius:.85rem; padding:.65rem .9rem; font-size:.8rem; font-weight:600; cursor:pointer; white-space:nowrap; }
+    .pv-short.sent .pv-short-in { opacity:.6; } .pv-short.sent .pv-short-send { background:#7BA77E; }
   </style>
 </head>
 
 <body class="booting sj-free">
+  <div id="accountDock"><button type="button" class="ws-btn" id="accountBtn">👤 Sign in</button></div>
   <div id="boot"><div class="boot-dot">✦</div><div class="boot-text">opening a little moment…</div></div>
 
   <div class="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14" id="dashboard">
@@ -392,7 +416,6 @@
           <button type="button" class="ws-btn sj-lock" id="sentBtn">📤 Sent &amp; Replies</button>
           <button type="button" class="ws-btn sj-lock" id="responsesBtn">📊 Responses</button>
           <button type="button" class="ws-btn sj-lock" id="musicBtn" aria-pressed="false">🎵 Music: Off</button>
-          <button type="button" class="ws-btn" id="accountBtn">👤 Sign in</button>
           <span class="ws-saved" id="savedHint"></span>
         </div>
 
@@ -1080,9 +1103,11 @@
           '<label class="field-label">'+msgLabel+' <span style="text-transform:none;letter-spacing:0;font-weight:400;">(max 120)</span></label>'+
           '<div class="field-wrap mb-3"><textarea class="field has-counter" data-role="text" rows="3" maxlength="'+MAXLEN+'" placeholder="Write your words…">'+(opts.text||'').replace(/</g,'&lt;')+'</textarea></div>'+
           '<label class="field-label">Media</label>'+ mediaHTML(id)+
+          (opts.envelope ? '' : intrEditorHTML(id))+
           emojiRowHTML(id,emoji);
         placeEditor(el);
         wireBlockCommon(el, id);
+        if(opts.interaction) applyInteraction(el, id, opts.interaction);
         if(!opts.defer){ buildPreview(); focusFirst(el); }
         return el;
       }
@@ -1142,8 +1167,10 @@
         var rm=el.querySelector('[data-remove]'); if(rm) rm.addEventListener('click', function(){ removeBlock(id, el); });
         // reorder (custom blocks)
         el.querySelectorAll('[data-move]').forEach(function(b){ b.addEventListener('click', function(){ moveBlock(el, b.getAttribute('data-move')); }); });
-        // add option
+        // add option (question block)
         var ao=el.querySelector('[data-addopt]'); if(ao) ao.addEventListener('click', function(){ addOptionRow(el, ''); });
+        // per-screen interaction (story blocks)
+        wireInteraction(el, id);
       }
 
       // Reorder a custom block by swapping with the adjacent CUSTOM block (guided blocks & final stay fixed)
@@ -1165,10 +1192,7 @@
         return Array.prototype.map.call(el.querySelectorAll('[data-role="opts"] input'), function(i){ return i.value.trim(); })
           .filter(function(v){ return v!==''; });
       }
-      function updateQuestionOptions(id){
-        var menu=document.getElementById('pv-ddmenu-'+id); if(!menu) return;
-        var el=blocksWrap.querySelector('.eb[data-id="'+id+'"]'); if(!el) return;
-        var opts=readOptions(el);
+      function fillDDMenu(menu, opts){
         menu.innerHTML='';
         if(!opts.length){ menu.innerHTML='<div class="pv-dd-empty">Add options on the left…</div>'; return; }
         opts.forEach(function(o){
@@ -1176,6 +1200,99 @@
           b.innerHTML='<span>'+escapeHtml(o)+'</span><span class="ck">✓</span>';
           menu.appendChild(b);
         });
+      }
+      function updateQuestionOptions(id){
+        var menu=document.getElementById('pv-ddmenu-'+id); if(!menu) return;
+        var el=blocksWrap.querySelector('.eb[data-id="'+id+'"]'); if(!el) return;
+        fillDDMenu(menu, readOptions(el));
+      }
+
+      /* ===== PER-SCREEN INTERACTION (Google-Forms style: Options / Short answer / Vote on any message) ===== */
+      function intrEditorHTML(id){
+        return '<label class="field-label" style="margin-top:.5rem;">Add a question <span style="text-transform:none;letter-spacing:0;font-weight:400;">(optional)</span></label>'+
+          '<div class="intr" data-intr="'+id+'" data-itype="none">'+
+            '<div class="intr-types">'+
+              '<button type="button" class="itype active" data-itype-btn="none" data-b="'+id+'">None</button>'+
+              '<button type="button" class="itype" data-itype-btn="dropdown" data-b="'+id+'">▾ Options</button>'+
+              '<button type="button" class="itype" data-itype-btn="short" data-b="'+id+'">✏️ Short answer</button>'+
+              '<button type="button" class="itype" data-itype-btn="vote" data-b="'+id+'">👍 Vote</button>'+
+            '</div>'+
+            '<div class="intr-body" data-intr-body="'+id+'" hidden>'+
+              '<input class="field" data-role="iprompt" type="text" maxlength="'+MAXLEN+'" placeholder="Ask something… e.g. Will you come?" />'+
+              '<div class="intr-opts" data-role="iopts" data-b="'+id+'"></div>'+
+              '<button type="button" class="opt-add" data-iaddopt="'+id+'">+ Add option</button>'+
+            '</div>'+
+          '</div>';
+      }
+      function addIntrOption(el, id, val){
+        var box=el.querySelector('[data-role="iopts"]'); if(!box) return;
+        var row=document.createElement('div'); row.className='opt-row';
+        row.innerHTML='<input class="field" type="text" maxlength="'+OPTMAX+'" placeholder="Type an option…" value="'+(val||'').replace(/"/g,'&quot;')+'" /><button type="button" class="opt-del" title="Remove option">✕</button>';
+        box.appendChild(row);
+        row.querySelector('input').addEventListener('input', function(){ buildPreview(); scheduleSave(); });
+        row.querySelector('.opt-del').addEventListener('click', function(){ row.remove(); buildPreview(); scheduleSave(); });
+      }
+      function setIntrType(el, id, t){
+        var wrap=el.querySelector('[data-intr="'+id+'"]'); if(!wrap) return;
+        wrap.setAttribute('data-itype', t);
+        el.querySelectorAll('[data-itype-btn]').forEach(function(x){ x.classList.toggle('active', x.getAttribute('data-itype-btn')===t); });
+        var body=el.querySelector('[data-intr-body="'+id+'"]');
+        var addBtn=el.querySelector('[data-iaddopt="'+id+'"]');
+        var optsBox=el.querySelector('[data-role="iopts"]');
+        var needsOpts=(t==='dropdown'||t==='vote');
+        if(body) body.hidden=(t==='none');
+        if(addBtn) addBtn.style.display=needsOpts?'':'none';
+        if(optsBox) optsBox.style.display=needsOpts?'':'none';
+        if(needsOpts && optsBox && !optsBox.querySelector('input')){ addIntrOption(el,id,''); addIntrOption(el,id,''); }
+      }
+      function wireInteraction(el, id){
+        el.querySelectorAll('[data-itype-btn]').forEach(function(b){ b.addEventListener('click', function(){
+          setIntrType(el, id, b.getAttribute('data-itype-btn')); buildPreview(); scheduleSave();
+        }); });
+        var prompt=el.querySelector('[data-role="iprompt"]'); if(prompt) prompt.addEventListener('input', function(){ var t=document.getElementById('pv-iq-'+id); if(t) t.textContent=prompt.value.trim()||'Your question…'; scheduleSave(); });
+        var addBtn=el.querySelector('[data-iaddopt="'+id+'"]'); if(addBtn) addBtn.addEventListener('click', function(){ addIntrOption(el,id,''); });
+      }
+      function readInteraction(el){
+        var wrap=el.querySelector('[data-intr]'); if(!wrap) return null;
+        var t=wrap.getAttribute('data-itype')||'none'; if(t==='none') return null;
+        var prompt=((el.querySelector('[data-role="iprompt"]')||{}).value||'').trim();
+        var opts=Array.prototype.map.call(el.querySelectorAll('[data-role="iopts"] input'), function(i){ return i.value.trim(); }).filter(function(v){ return v!==''; });
+        if(!prompt && !opts.length) return null;
+        return { type:t, prompt:prompt, options:(t==='short'?[]:opts) };
+      }
+      function applyInteraction(el, id, intr){
+        if(!intr || !intr.type || intr.type==='none') return;
+        var promptEl=el.querySelector('[data-role="iprompt"]'); if(promptEl) promptEl.value=intr.prompt||'';
+        setIntrType(el, id, intr.type);
+        if((intr.type==='dropdown'||intr.type==='vote') && intr.options && intr.options.length){
+          var box=el.querySelector('[data-role="iopts"]'); if(box) box.innerHTML='';
+          intr.options.forEach(function(o){ addIntrOption(el, id, o); });
+        }
+      }
+      // build the live interaction markup for a screen (recipient/preview)
+      function intrPreviewHTML(id, intr){
+        if(!intr || !intr.type || intr.type==='none') return '';
+        var q='<h3 class="pv-iq" id="pv-iq-'+id+'">'+escapeHtml(intr.prompt||'Your question…')+'</h3>';
+        if(intr.type==='dropdown'){
+          return q+'<div class="pv-dd" id="pv-dd-'+id+'" data-dd="'+id+'">'+
+            '<button type="button" class="pv-dd-trigger" data-dd-trigger="'+id+'"><span data-dd-label>Choose an option…</span>'+
+            '<svg class="pv-dd-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>'+
+            '<div class="pv-dd-menu" id="pv-ddmenu-'+id+'"></div></div>';
+        }
+        if(intr.type==='vote'){
+          var btns=(intr.options||[]).map(function(o){ return '<button type="button" class="pv-vote-opt" data-vote="'+id+'" data-val="'+o.replace(/"/g,'&quot;')+'">'+escapeHtml(o)+'</button>'; }).join('');
+          return q+'<div class="pv-vote" id="pv-vote-'+id+'">'+btns+'</div>';
+        }
+        if(intr.type==='short'){
+          return q+'<div class="pv-short" id="pv-short-wrap-'+id+'"><input type="text" class="pv-short-in" id="pv-short-'+id+'" placeholder="Type your answer…" /><button type="button" class="pv-short-send" data-short="'+id+'">Send</button></div>';
+        }
+        return '';
+      }
+      function refreshIntr(id){
+        var el=blocksWrap.querySelector('.eb[data-id="'+id+'"]'); if(!el) return;
+        var menu=document.getElementById('pv-ddmenu-'+id); if(!menu) return; // only dropdown interactions have a menu
+        var intr=readInteraction(el); if(!intr || intr.type!=='dropdown') return;
+        fillDDMenu(menu, intr.options);
       }
       function escapeHtml(s){ return s.replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
@@ -1207,6 +1324,7 @@
           '<span class="pv-ornament">'+EMOJI_GLYPH[emojiOf[id]||'hearts']+'</span>'+
           '<div class="pv-media" data-media-for="pv-img-'+id+'"><div class="pv-media-inner"></div><div class="pv-media-fallback">No media yet</div></div>'+
           '<h2 class="pv-headline" id="pv-text-'+id+'">'+escapeHtml(text)+'</h2>'+
+          intrPreviewHTML(id, readInteraction(el))+
           '<button class="pv-btn pv-btn-dark active:scale-95 transition-all duration-150 ease-out" data-pv-nav>Continue</button>';
         return sc;
       }
@@ -1235,6 +1353,7 @@
             '<div class="pv-media" data-media-for="pv-img-final"><div class="pv-media-inner"></div><div class="pv-media-fallback">No media yet</div></div>'+
             '<p id="pv-text-final">'+escapeHtml(text)+'</p>'+
           '</div>'+
+          intrPreviewHTML('final', readInteraction(el))+
           '<button class="pv-btn pv-cta active:scale-95 transition-all duration-150 ease-out" id="pv-cta">✨ Send Your Own Magical Letter</button>';
         return sc;
       }
@@ -1259,7 +1378,7 @@
         // restore media + options + first active
         blocks.forEach(function(el){
           var id=el.getAttribute('data-id'), type=el.getAttribute('data-type');
-          if(type==='question') updateQuestionOptions(id); else restoreMedia(id);
+          if(type==='question'){ updateQuestionOptions(id); } else { restoreMedia(id); refreshIntr(id); }
         });
 
         var first=pvStage.querySelector('.pv-screen'); if(first) first.classList.add('is-active');
@@ -1317,7 +1436,18 @@
           opt.classList.add('selected');
           dd.querySelector('[data-dd-label]').textContent=opt.getAttribute('data-val');
           dd.classList.remove('open');
-          if(playMode){ var qScreen=dd.closest('.pv-screen'); var qTextEl=qScreen.querySelector('.pv-headline'); recordRSVP((qTextEl?qTextEl.textContent:'Question'), opt.getAttribute('data-val')); }
+          if(playMode){ var qScreen=dd.closest('.pv-screen'); var qTextEl=qScreen.querySelector('.pv-iq')||qScreen.querySelector('.pv-headline'); recordRSVP((qTextEl?qTextEl.textContent:'Question'), opt.getAttribute('data-val')); }
+          return; }
+        // vote (poll buttons)
+        var vt=e.target.closest('.pv-vote-opt');
+        if(vt){ var vwrap=vt.parentNode; vwrap.querySelectorAll('.pv-vote-opt').forEach(function(o){ o.classList.remove('selected'); }); vt.classList.add('selected');
+          if(playMode){ var vScreen=vt.closest('.pv-screen'); var vq=vScreen.querySelector('.pv-iq'); recordRSVP((vq?vq.textContent:'Vote'), vt.getAttribute('data-val')); }
+          return; }
+        // short answer (send)
+        var sh=e.target.closest('[data-short]');
+        if(sh){ var sid=sh.getAttribute('data-short'); var inp=document.getElementById('pv-short-'+sid); var val=inp?inp.value.trim():''; if(!val) return;
+          var wrap=document.getElementById('pv-short-wrap-'+sid); if(wrap) wrap.classList.add('sent'); sh.textContent='Sent ✓'; if(inp) inp.setAttribute('readonly','readonly');
+          if(playMode){ var sScreen=sh.closest('.pv-screen'); var sq=sScreen.querySelector('.pv-iq'); recordRSVP((sq?sq.textContent:'Answer'), val); }
           return; }
         // nav (continue)
         var nav=e.target.closest('[data-pv-nav]');
@@ -1480,7 +1610,7 @@
           var o={ type:type, emoji:emojiOf[id]||'hearts', permanent:!el.querySelector('[data-remove]') };
           if(el.getAttribute('data-envelope')==='1') o.envelope=true;
           if(type==='question'){ o.question=el.querySelector('[data-role="question"]').value; o.options=readOptions(el); }
-          else { o.text=el.querySelector('[data-role="text"]').value; }
+          else { o.text=el.querySelector('[data-role="text"]').value; var intr=readInteraction(el); if(intr) o.interaction=intr; }
           var slot=mediaSlots[id]; var kind=kindPref[id]||'image';
           // Include any durable media: hosted http(s) URLs (preferred) or inline data: URLs (fallback so photos still travel).
           // blob: URLs are local-only and are healed into hosted URLs by ensureHostedMedia() before this runs.
@@ -1503,7 +1633,7 @@
             el=addQuestionBlock({ defer:true, permanent:b.permanent, emoji:b.emoji, title:(b.permanent?('Screen '+num+' · The Dropdown Question'):'Custom Question'), question:b.question||'', options:(b.options&&b.options.length?b.options:['Option 1','Option 2']) });
           } else {
             var isFinal=b.type==='final';
-            el=addStoryBlock({ defer:true, permanent:b.permanent, type:(isFinal?'final':'story'), id:(isFinal?'final':undefined), envelope:b.envelope, emoji:b.emoji, title:(b.permanent?('Screen '+num+(isFinal?' · The Final Card':(b.envelope?' · The Envelope Hook':' · Story'))):'Custom Story Block'), text:b.text||'' });
+            el=addStoryBlock({ defer:true, permanent:b.permanent, type:(isFinal?'final':'story'), id:(isFinal?'final':undefined), envelope:b.envelope, emoji:b.emoji, title:(b.permanent?('Screen '+num+(isFinal?' · The Final Card':(b.envelope?' · The Envelope Hook':' · Story'))):'Custom Story Block'), text:b.text||'', interaction:b.interaction });
             if(isFinal) finalEl=el;
           }
           var id=el.getAttribute('data-id');
