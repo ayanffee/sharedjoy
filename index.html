@@ -345,7 +345,7 @@
   </style>
 </head>
 
-<body class="booting">
+<body class="booting sj-free">
   <div id="boot"><div class="boot-dot">✦</div><div class="boot-text">opening a little moment…</div></div>
 
   <div class="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14" id="dashboard">
@@ -392,7 +392,7 @@
           <button type="button" class="ws-btn sj-lock" id="sentBtn">📤 Sent &amp; Replies</button>
           <button type="button" class="ws-btn sj-lock" id="responsesBtn">📊 Responses</button>
           <button type="button" class="ws-btn sj-lock" id="musicBtn" aria-pressed="false">🎵 Music: Off</button>
-          <button type="button" class="ws-btn" id="accountBtn" style="margin-left:auto;">👤 Sign in</button>
+          <button type="button" class="ws-btn" id="accountBtn">👤 Sign in</button>
           <span class="ws-saved" id="savedHint"></span>
         </div>
 
@@ -1818,18 +1818,9 @@
           btn.disabled=false; btn.textContent=orig; alert(msg||'Payment could not be completed.');
         });
       });
-      // Premium-only actions (Sent & Replies, Responses) — pay to access
-      function gatePremiumAction(e, feats){
-        if(isPremium()) return true; // allow
-        if(e){ e.preventDefault(); e.stopImmediatePropagation(); }
-        if(!isSignedIn()){ openAuth(function(){ loadPremium().then(function(){ if(isPremium()){ /* now allowed; user can click again */ } else { openPaywall(null,{features:feats}); } }); }); return false; }
-        openPaywall(null,{features:feats}); return false;
-      }
-      (function(){
-        var sb=document.getElementById('sentBtn'), rb=document.getElementById('responsesBtn');
-        if(sb) sb.addEventListener('click', function(e){ gatePremiumAction(e,['Sent & Replies']); }, true);
-        if(rb) rb.addEventListener('click', function(e){ gatePremiumAction(e,['Responses']); }, true);
-      })();
+      // Every feature is freely usable while building — the only paywall moment is Generate.
+      // (Sent & Replies / Responses open normally; the lock badge is just a "this is premium" hint,
+      // and all badges disappear once the user is on Pro.)
 
       function runGenerate(){
         var c=document.getElementById('copyBtn'); c.textContent='Copy Link'; c.classList.remove('copied');
