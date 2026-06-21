@@ -1381,6 +1381,27 @@
       var currentLetterId=null;
       function genId(){ return 'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
+      // Before publishing, make sure every block's media is a durable, shareable URL.
+      // Hosted https URLs are kept; data:/blob: previews are uploaded to storage now (re-fetching blob bytes
+      // when a prior upload didn't complete). This is what guarantees photos & videos travel inside the link.
+      function ensureHostedMedia(){
+        if(!SB_ON) return Promise.resolve();
+        var jobs=[];
+        Object.keys(mediaSlots).forEach(function(id){
+          var kind=kindPref[id]||'image';
+          var slot=mediaSlots[id]&&mediaSlots[id][kind];
+          if(!slot||!slot.url) return;
+          var url=slot.url;
+          if(/^https?:/i.test(url)) return; // already durable
+          var getBlob;
+          if(/^data:/i.test(url)){ var b=dataURLtoBlob(url); if(!b) return; try{ b.name=(kind==='video'?'video.mp4':'photo.jpg'); }catch(e){} getBlob=Promise.resolve(b); }
+          else if(/^blob:/i.test(url)){ getBlob=fetch(url).then(function(r){ return r.blob(); }).then(function(b){ try{ b.name=(kind==='video'? 'video.mp4':'photo.jpg'); }catch(e){} return b; }); }
+          else return;
+          jobs.push(getBlob.then(function(b){ return sbUpload(b); }).then(function(hosted){ if(hosted) mediaSlots[id][kind]={ url:hosted, isLocal:false, label:slot.label }; }).catch(function(){ /* leave original; data: images still travel inline */ }));
+        });
+        return Promise.all(jobs);
+      }
+
       function serializeState(){
         var items=[];
         Array.prototype.forEach.call(blocksWrap.querySelectorAll('.eb'), function(el){
@@ -1390,8 +1411,9 @@
           if(type==='question'){ o.question=el.querySelector('[data-role="question"]').value; o.options=readOptions(el); }
           else { o.text=el.querySelector('[data-role="text"]').value; }
           var slot=mediaSlots[id]; var kind=kindPref[id]||'image';
-          // include shareable media: http(s) URLs (memes/links) and embedded image data URLs (uploads), but skip huge blobs/videos
-          if(slot && slot[kind] && /^(https?:|data:image\/)/i.test(slot[kind].url) && slot[kind].url.length < 1500000) o.media={ kind:kind, url:slot[kind].url };
+          // Include any durable media: hosted http(s) URLs (preferred) or inline data: URLs (fallback so photos still travel).
+          // blob: URLs are local-only and are healed into hosted URLs by ensureHostedMedia() before this runs.
+          if(slot && slot[kind] && slot[kind].url && /^(https?:|data:)/i.test(slot[kind].url)) o.media={ kind:kind, url:slot[kind].url };
           items.push(o);
         });
         return { v:1, id:currentLetterId||(currentLetterId=genId()), theme:currentTheme, music:{ on:musicOn, src:musicSrc, start:musicStart }, blocks:items };
@@ -1710,6 +1732,8 @@
         modal.classList.add('show');
         linkEl.textContent = pendingUploads>0 ? 'Finishing media upload…' : 'Generating your link…';
         waitForUploads(function(){
+        linkEl.textContent='Preparing your photos & videos…';
+        ensureHostedMedia().then(function(){
         var st=serializeState();
         if(auth.user&&auth.user.id) st.owner=auth.user.id;
         if(SB_ON){
@@ -1728,6 +1752,7 @@
         } else {
           linkEl.textContent=offlineLink(st);
         }
+        }); // end ensureHostedMedia().then
         }); // end waitForUploads
       }
       document.getElementById('generateBtn').addEventListener('click', function(){
