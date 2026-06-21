@@ -6,6 +6,7 @@
   <title>Interactive Story Form · Creator</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -326,6 +327,21 @@
     .auth-toggle button:hover { text-decoration:underline; }
     #authModal .modal-card { max-width:25rem; }
     .ws-btn.is-auth { background:#3A3438; color:#FBF6F0; border-color:#3A3438; }
+    /* premium lock badges (only visible to free users via body.sj-free) */
+    .sj-lock { position:relative; }
+    .sj-lock::after { content:"🔒"; position:absolute; top:-7px; right:-7px; font-size:.58rem; line-height:1; width:1.05rem; height:1.05rem; border-radius:50%; display:none; align-items:center; justify-content:center; background:rgba(58,52,56,0.55); box-shadow:0 1px 4px rgba(0,0,0,0.28); backdrop-filter:saturate(120%); pointer-events:none; z-index:5; }
+    body.sj-free .sj-lock::after { display:flex; }
+    .swatch.sj-lock::after { top:-5px; right:-5px; }
+    /* paywall modal */
+    #paywallModal .modal-card { max-width:26rem; text-align:left; }
+    .pw-price { font-size:2rem; font-weight:700; color:#3A3438; }
+    .pw-price small { font-size:.8rem; font-weight:500; color:rgba(58,52,56,0.5); }
+    .pw-feats { list-style:none; padding:0; margin:.6rem 0 0; }
+    .pw-feats li { display:flex; align-items:center; gap:.5rem; padding:.32rem 0; font-size:.9rem; color:rgba(58,52,56,0.8); }
+    .pw-feats li::before { content:"🔒"; font-size:.8rem; }
+    .btn-pay { width:100%; margin-top:1rem; border:none; cursor:pointer; border-radius:.85rem; padding:.9rem 1rem; font-weight:700; font-size:.95rem; background:#3A3438; color:#FBF6F0; }
+    .btn-pay:hover { filter:brightness(1.08); }
+    .pw-note { font-size:.72rem; color:rgba(58,52,56,0.5); text-align:center; margin-top:.7rem; }
   </style>
 </head>
 
@@ -373,9 +389,9 @@
         <div class="ws-toolbar">
           <button type="button" class="ws-btn" id="saveDraftBtn">💾 Save Draft</button>
           <button type="button" class="ws-btn" id="myLettersBtn">📂 Drafts</button>
-          <button type="button" class="ws-btn" id="sentBtn">📤 Sent &amp; Replies</button>
-          <button type="button" class="ws-btn" id="responsesBtn">📊 Responses</button>
-          <button type="button" class="ws-btn" id="musicBtn" aria-pressed="false">🎵 Music: Off</button>
+          <button type="button" class="ws-btn sj-lock" id="sentBtn">📤 Sent &amp; Replies</button>
+          <button type="button" class="ws-btn sj-lock" id="responsesBtn">📊 Responses</button>
+          <button type="button" class="ws-btn sj-lock" id="musicBtn" aria-pressed="false">🎵 Music: Off</button>
           <button type="button" class="ws-btn" id="accountBtn" style="margin-left:auto;">👤 Sign in</button>
           <span class="ws-saved" id="savedHint"></span>
         </div>
@@ -385,7 +401,7 @@
 
         <!-- Add Custom Block dropdown (inserts before the Final Card) -->
         <div class="add-wrap">
-          <button type="button" class="btn-add" id="addBtn"><span style="font-size:1.05rem;">➕</span> Add Custom Block</button>
+          <button type="button" class="btn-add sj-lock" id="addBtn"><span style="font-size:1.05rem;">➕</span> Add Custom Block</button>
           <div class="add-menu" id="addMenu">
             <div class="add-opt" data-add="story"><span class="ic">📖</span><span><span class="t">Story Block</span><br><span class="s">An image + heartfelt message</span></span></div>
             <div class="add-opt" data-add="question"><span class="ic">❓</span><span><span class="t">Question &amp; Dropdown Block</span><br><span class="s">Ask a question with custom options</span></span></div>
@@ -414,10 +430,10 @@
           <label class="field-label">Theme Color &middot; applies to the whole letter</label>
           <div class="flex items-center gap-2.5 flex-wrap" id="themeRow">
             <div class="swatch active" data-theme="cream"    title="Warm Cream"  style="background:linear-gradient(135deg,#FBF6F0,#F7E6E3);"></div>
-            <div class="swatch"        data-theme="blush"    title="Blush Dream" style="background:linear-gradient(135deg,#F7DDDF,#E8B4B8);"></div>
-            <div class="swatch"        data-theme="sage"     title="Soft Sage"   style="background:linear-gradient(135deg,#EAF0E6,#CBD8C0);"></div>
-            <div class="swatch"        data-theme="lavender" title="Lavender"    style="background:linear-gradient(135deg,#EDE7F4,#C9B8DD);"></div>
-            <div class="swatch"        data-theme="midnight" title="Midnight"    style="background:linear-gradient(135deg,#3A3438,#5A4E54);"></div>
+            <div class="swatch sj-lock"        data-theme="blush"    title="Blush Dream (premium)" style="background:linear-gradient(135deg,#F7DDDF,#E8B4B8);"></div>
+            <div class="swatch sj-lock"        data-theme="sage"     title="Soft Sage (premium)"   style="background:linear-gradient(135deg,#EAF0E6,#CBD8C0);"></div>
+            <div class="swatch sj-lock"        data-theme="lavender" title="Lavender (premium)"    style="background:linear-gradient(135deg,#EDE7F4,#C9B8DD);"></div>
+            <div class="swatch sj-lock"        data-theme="midnight" title="Midnight (premium)"    style="background:linear-gradient(135deg,#3A3438,#5A4E54);"></div>
           </div>
           <p class="text-[0.7rem] text-charcoal/40 mt-2">Backgrounds, highlights &amp; accents update across every screen.</p>
         </div>
@@ -561,6 +577,20 @@
     </div>
   </div>
 
+  <!-- PAYWALL MODAL -->
+  <div class="modal-overlay" id="paywallModal">
+    <div class="modal-card">
+      <div class="modal-emoji" style="text-align:center;">&#10024;</div>
+      <h3 class="font-serif text-3xl text-charcoal/90 mb-1 text-center">You're using premium features</h3>
+      <p class="text-charcoal/55 text-sm text-center mb-3">Your letter is ready — unlock these to generate and share it:</p>
+      <ul class="pw-feats" id="paywallFeatures"></ul>
+      <div style="text-align:center;margin-top:1rem;"><span class="pw-price">&#8358;5,000<small> / week</small></span></div>
+      <button class="btn-pay" id="paywallPay">Unlock with Premium &#128274;</button>
+      <button class="modal-close" id="paywallClose">Maybe later</button>
+      <div class="pw-note">Secure payment via Paystack · Weekly access · Cancel anytime by not renewing.</div>
+    </div>
+  </div>
+
   <script>
     (function () {
       var MAXLEN = 120, OPTMAX = 60;
@@ -617,6 +647,47 @@
       function authValidate(email,pw){ if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return 'Enter a valid email address.'; if((pw||'').length<8) return 'Password must be at least 8 characters.'; return ''; }
       function authSignIn(email,pw){ return authReq('token?grant_type=password',{ email:email, password:pw }).then(function(res){ if(!res.ok||!res.data.access_token){ throw new Error(authMsg(res.data)); } return res.data; }); }
       function authSignUp(email,pw){ return authReq('signup',{ email:email, password:pw }).then(function(res){ if(!res.ok){ throw new Error(authMsg(res.data)); } if(res.data&&res.data.access_token){ return res.data; } return authSignIn(email,pw); }); }
+
+      /* ===== PREMIUM / PAYSTACK ===== */
+      var PAYSTACK_PK='pk_live_9c9fd70f398c69636c9bde1c27c053df958842a4';
+      var PRICE_NGN=5000;
+      var FREE_THEME='cream';
+      var premiumExpires=0;
+      function isPremium(){ return premiumExpires>Date.now(); }
+      function updatePremiumUI(){ document.body.classList.toggle('sj-free', !isPremium()); }
+      function loadPremium(){
+        if(!isSignedIn()||!auth.user||!SB_ON){ updatePremiumUI(); return Promise.resolve(); }
+        return sbRpc('sj_premium_status',{ p_user_id:auth.user.id }).then(function(ts){ premiumExpires = ts? (new Date(ts).getTime()||0) : 0; updatePremiumUI(); }).catch(function(){ updatePremiumUI(); });
+      }
+      function verifyPayment(reference){
+        return fetch(SB_URL+'/functions/v1/verify-payment',{ method:'POST', headers:sbHeaders(), body:JSON.stringify({ reference:reference }) })
+          .then(function(r){ return r.json(); })
+          .then(function(j){ if(j&&j.ok){ premiumExpires=new Date(j.expires_at).getTime()||(Date.now()+7*864e5); updatePremiumUI(); return true; } return false; })
+          .catch(function(){ return false; });
+      }
+      function startPaystack(onPaid, onFail){
+        if(!auth.user){ if(onFail) onFail('Please sign in first.'); return; }
+        if(typeof PaystackPop==='undefined'){ if(onFail) onFail('Payment library didn’t load — check your connection and retry.'); return; }
+        try{
+          var handler=PaystackPop.setup({
+            key:PAYSTACK_PK, email:auth.user.email, amount:PRICE_NGN*100, currency:'NGN',
+            metadata:{ user_id:auth.user.id, plan:'weekly', custom_fields:[{ display_name:'Plan', variable_name:'plan', value:'SharedJoy Weekly' }] },
+            callback:function(resp){ verifyPayment(resp.reference).then(function(ok){ if(ok){ if(onPaid) onPaid(); } else if(onFail){ onFail('We couldn’t confirm the payment yet. If you were charged, it can take a moment — try Generate again shortly.'); } }); },
+            onClose:function(){ /* user dismissed */ }
+          });
+          handler.openIframe();
+        }catch(e){ if(onFail) onFail('Could not open the payment window. Please retry.'); }
+      }
+      // Which premium features is the current letter using?
+      function usesPremiumFeatures(){
+        var f=[];
+        var hasVideo=Object.keys(mediaSlots).some(function(id){ return kindPref[id]==='video' && mediaSlots[id] && mediaSlots[id].video && mediaSlots[id].video.url; });
+        if(hasVideo) f.push('Video on a screen');
+        if(typeof musicOn!=='undefined' && musicOn) f.push('Background music');
+        if(typeof currentTheme!=='undefined' && currentTheme && currentTheme!==FREE_THEME) f.push('A premium theme colour');
+        if(blocksWrap && blocksWrap.querySelector('.eb [data-remove]')) f.push('A custom block');
+        return f;
+      }
 
       /* ===== HAPTICS ===== */
       var Haptics = { supported:(typeof navigator!=='undefined' && typeof navigator.vibrate==='function'),
@@ -974,7 +1045,7 @@
       function mediaHTML(id){
         return '<div class="media-tabs" data-tabs="'+id+'">'+
             '<button type="button" class="mtab active" data-mtab="image" data-screen="'+id+'">📷 Photo</button>'+
-            '<button type="button" class="mtab" data-mtab="video" data-screen="'+id+'">🎬 Video</button>'+
+            '<button type="button" class="mtab sj-lock" data-mtab="video" data-screen="'+id+'">🎬 Video</button>'+
           '</div>'+
           '<input type="file" id="file-'+id+'" class="hidden-file" accept="'+ACCEPT_ALL+'" />'+
           '<div class="dropzone" data-screen="'+id+'">'+
@@ -1711,7 +1782,7 @@
         var v=authValidate(email,pw); if(v){ errEl.textContent=v; return; }
         var btn=document.getElementById('authSubmit'); var orig=btn.textContent; btn.disabled=true; btn.textContent='Working…'; errEl.textContent='';
         var p = authMode==='signup' ? authSignUp(email,pw) : authSignIn(email,pw);
-        p.then(function(session){ saveAuth(session); var after=pendingAfterAuth; authModal.classList.remove('show'); pendingAfterAuth=null; btn.disabled=false; btn.textContent=orig; document.getElementById('authPass').value=''; if(typeof after==='function') after(); })
+        p.then(function(session){ saveAuth(session); var after=pendingAfterAuth; authModal.classList.remove('show'); pendingAfterAuth=null; btn.disabled=false; btn.textContent=orig; document.getElementById('authPass').value=''; loadPremium().then(function(){ if(typeof after==='function') after(); }); })
          .catch(function(err){ btn.disabled=false; btn.textContent=orig; errEl.textContent=(err&&err.message)||'Something went wrong. Please try again.'; });
       }
       document.getElementById('authToggleBtn').addEventListener('click', function(){ setAuthMode(authMode==='signup'?'signin':'signup'); document.getElementById('authError').textContent=''; });
@@ -1725,6 +1796,40 @@
         else { openAuth(null); }
       });
       updateAccountUI();
+      loadPremium();
+
+      /* ===== PAYWALL CONTROLLER + PREMIUM GATING ===== */
+      var paywallModal=document.getElementById('paywallModal');
+      var pendingAfterPay=null;
+      function openPaywall(after, opts){
+        opts=opts||{}; pendingAfterPay=after||null;
+        var feats=opts.features||usesPremiumFeatures();
+        document.getElementById('paywallFeatures').innerHTML = (feats.length?feats:['Premium feature']).map(function(f){ return '<li>'+f+'</li>'; }).join('');
+        paywallModal.classList.add('show');
+      }
+      function closePaywall(){ paywallModal.classList.remove('show'); pendingAfterPay=null; }
+      document.getElementById('paywallClose').addEventListener('click', closePaywall);
+      paywallModal.addEventListener('click', function(e){ if(e.target===paywallModal) closePaywall(); });
+      document.getElementById('paywallPay').addEventListener('click', function(){
+        var btn=this; var orig=btn.textContent; btn.disabled=true; btn.textContent='Opening secure checkout…';
+        startPaystack(function(){ // paid
+          btn.disabled=false; btn.textContent=orig; var after=pendingAfterPay; pendingAfterPay=null; paywallModal.classList.remove('show'); if(typeof after==='function') after();
+        }, function(msg){ // failed / library issue
+          btn.disabled=false; btn.textContent=orig; alert(msg||'Payment could not be completed.');
+        });
+      });
+      // Premium-only actions (Sent & Replies, Responses) — pay to access
+      function gatePremiumAction(e, feats){
+        if(isPremium()) return true; // allow
+        if(e){ e.preventDefault(); e.stopImmediatePropagation(); }
+        if(!isSignedIn()){ openAuth(function(){ loadPremium().then(function(){ if(isPremium()){ /* now allowed; user can click again */ } else { openPaywall(null,{features:feats}); } }); }); return false; }
+        openPaywall(null,{features:feats}); return false;
+      }
+      (function(){
+        var sb=document.getElementById('sentBtn'), rb=document.getElementById('responsesBtn');
+        if(sb) sb.addEventListener('click', function(e){ gatePremiumAction(e,['Sent & Replies']); }, true);
+        if(rb) rb.addEventListener('click', function(e){ gatePremiumAction(e,['Responses']); }, true);
+      })();
 
       function runGenerate(){
         var c=document.getElementById('copyBtn'); c.textContent='Copy Link'; c.classList.remove('copied');
@@ -1755,16 +1860,18 @@
         }); // end ensureHostedMedia().then
         }); // end waitForUploads
       }
-      document.getElementById('generateBtn').addEventListener('click', function(){
-        // Gate behind an account — but the build stays intact (this is just an overlay, no refresh),
-        // and after sign-in we resume generating right where they left off.
-        if(!isSignedIn()){ openAuth(runGenerate); return; }
+      function attemptGenerate(){
+        // 1) must have an account (build stays intact — overlay only, no refresh)
+        if(!isSignedIn()){ openAuth(attemptGenerate); return; }
+        // 2) if the letter uses premium features and they're not subscribed, show the paywall; pay → resume
+        if(!isPremium() && usesPremiumFeatures().length){ openPaywall(runGenerate); return; }
         runGenerate();
-      });
+      }
+      document.getElementById('generateBtn').addEventListener('click', attemptGenerate);
       function hideModal(){ modal.classList.remove('show'); }
       document.getElementById('modalClose').addEventListener('click', hideModal);
       modal.addEventListener('click', function(e){ if(e.target===modal) hideModal(); });
-      document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ hideModal(); closeMeme(); if(flowOpen) closeFullFlow(); draftsModal.classList.remove('show'); respModal.classList.remove('show'); sentModal.classList.remove('show'); authModal.classList.remove('show'); } });
+      document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ hideModal(); closeMeme(); if(flowOpen) closeFullFlow(); draftsModal.classList.remove('show'); respModal.classList.remove('show'); sentModal.classList.remove('show'); authModal.classList.remove('show'); paywallModal.classList.remove('show'); } });
       document.getElementById('copyBtn').addEventListener('click', function(){ var link=document.getElementById('magicLink').textContent; var btn=this;
         function done(){ btn.textContent='Copied ✓'; btn.classList.add('copied'); setTimeout(function(){ btn.textContent='Copy Link'; btn.classList.remove('copied'); },2000); }
         if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(done).catch(function(){ fallbackCopy(link); done(); }); } else { fallbackCopy(link); done(); }
