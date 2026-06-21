@@ -318,6 +318,14 @@
     .crop-actions button { flex:1; border:none; cursor:pointer; border-radius:.8rem; padding:.7rem 1rem; font-weight:600; font-size:.85rem; }
     .crop-apply { background:#3A3438; color:#FBF6F0; }
     .crop-cancel { background:#FBF1EE; color:#3A3438; }
+    /* auth modal */
+    .auth-label { display:block; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(58,52,56,0.5); margin:0 0 .3rem; }
+    .auth-error { color:#b4453f; font-size:.8rem; margin-top:.5rem; min-height:1rem; }
+    .auth-toggle { text-align:center; font-size:.85rem; color:rgba(58,52,56,0.6); margin-top:.9rem; }
+    .auth-toggle button { color:#C98A8E; font-weight:600; background:none; border:none; cursor:pointer; padding:0 .25rem; }
+    .auth-toggle button:hover { text-decoration:underline; }
+    #authModal .modal-card { max-width:25rem; }
+    .ws-btn.is-auth { background:#3A3438; color:#FBF6F0; border-color:#3A3438; }
   </style>
 </head>
 
@@ -368,6 +376,7 @@
           <button type="button" class="ws-btn" id="sentBtn">📤 Sent &amp; Replies</button>
           <button type="button" class="ws-btn" id="responsesBtn">📊 Responses</button>
           <button type="button" class="ws-btn" id="musicBtn" aria-pressed="false">🎵 Music: Off</button>
+          <button type="button" class="ws-btn" id="accountBtn" style="margin-left:auto;">👤 Sign in</button>
           <span class="ws-saved" id="savedHint"></span>
         </div>
 
@@ -532,6 +541,26 @@
     </div>
   </div>
 
+  <!-- AUTH MODAL -->
+  <div class="modal-overlay" id="authModal">
+    <div class="modal-card" style="text-align:left;">
+      <div class="modal-emoji" style="text-align:center;">&#128274;</div>
+      <h3 class="font-serif text-3xl text-charcoal/90 mb-1 text-center" id="authTitle">Create your account</h3>
+      <p class="text-charcoal/55 text-sm text-center mb-4" id="authSub">Save your work and generate shareable links. Your story stays exactly as you left it.</p>
+      <label class="auth-label">Email</label>
+      <input id="authEmail" class="field" type="email" autocomplete="email" placeholder="you@example.com" />
+      <label class="auth-label" style="margin-top:.6rem;">Password</label>
+      <input id="authPass" class="field" type="password" autocomplete="current-password" placeholder="At least 8 characters" />
+      <div id="authError" class="auth-error"></div>
+      <button class="btn-generate" id="authSubmit" style="width:100%;margin-top:1rem;">Sign up &amp; continue</button>
+      <div class="auth-toggle">
+        <span id="authToggleText">Already have an account?</span>
+        <button type="button" id="authToggleBtn">Sign in</button>
+      </div>
+      <button class="modal-close" id="authClose">Cancel</button>
+    </div>
+  </div>
+
   <script>
     (function () {
       var MAXLEN = 120, OPTMAX = 60;
@@ -565,6 +594,29 @@
         return fetch(SB_URL+'/storage/v1/object/sj-media/'+path, { method:'POST', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY, 'Content-Type':file.type||'application/octet-stream', 'x-upsert':'true' }, body:file })
           .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error('upload '+r.status+' '+t); }); return SB_URL+'/storage/v1/object/public/sj-media/'+path; });
       }
+
+      /* ===== AUTH (Supabase email/password) ===== */
+      var AUTH_KEY='sj:auth';
+      var auth = { session:null, user:null };
+      (function loadAuth(){ try{ var raw=localStorage.getItem(AUTH_KEY); if(raw){ var s=JSON.parse(raw); if(s&&s.access_token){ auth.session=s; auth.user=s.user||null; } } }catch(e){} })();
+      function isSignedIn(){ return !!(auth.session&&auth.session.access_token); }
+      function saveAuth(s){ auth.session=s; auth.user=(s&&s.user)||null; try{ localStorage.setItem(AUTH_KEY, JSON.stringify(s)); }catch(e){} updateAccountUI(); }
+      function clearAuth(){ auth.session=null; auth.user=null; try{ localStorage.removeItem(AUTH_KEY); }catch(e){} updateAccountUI(); }
+      function authReq(path, body){
+        return fetch(SB_URL+'/auth/v1/'+path, { method:'POST', headers:{ 'apikey':SB_KEY, 'Content-Type':'application/json' }, body:JSON.stringify(body) })
+          .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, data:j }; }, function(){ return { ok:r.ok, status:r.status, data:{} }; }); });
+      }
+      function authMsg(d){ if(!d) return 'Something went wrong. Please try again.';
+        var m = d.msg || d.error_description || d.error || (d.weak_password? 'weak' : '') || 'Something went wrong. Please try again.';
+        if(/invalid login|invalid credentials/i.test(m)) return 'Wrong email or password.';
+        if(/already registered|already been registered|user already|email.*exists/i.test(m)) return 'That email already has an account — try signing in.';
+        if(/weak|pwned/i.test(m)) return 'That password is too easy to guess. Try a longer, more unique one.';
+        if(/email.*confirm|not confirmed/i.test(m)) return 'Please confirm your email, then sign in.';
+        return m;
+      }
+      function authValidate(email,pw){ if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return 'Enter a valid email address.'; if((pw||'').length<8) return 'Password must be at least 8 characters.'; return ''; }
+      function authSignIn(email,pw){ return authReq('token?grant_type=password',{ email:email, password:pw }).then(function(res){ if(!res.ok||!res.data.access_token){ throw new Error(authMsg(res.data)); } return res.data; }); }
+      function authSignUp(email,pw){ return authReq('signup',{ email:email, password:pw }).then(function(res){ if(!res.ok){ throw new Error(authMsg(res.data)); } if(res.data&&res.data.access_token){ return res.data; } return authSignIn(email,pw); }); }
 
       /* ===== HAPTICS ===== */
       var Haptics = { supported:(typeof navigator!=='undefined' && typeof navigator.vibrate==='function'),
@@ -1613,13 +1665,53 @@
       var lastPublish=null;
       function offlineLink(st){ return location.href.split(/[#?]/)[0]+'#play='+encodeState(st); }
       function waitForUploads(done){ if(pendingUploads<=0) return done(); var n=0; var iv=setInterval(function(){ n++; if(pendingUploads<=0||n>1200){ clearInterval(iv); done(); } }, 250); } // wait up to ~5 min (video compress + upload)
-      document.getElementById('generateBtn').addEventListener('click', function(){
+      /* ===== AUTH MODAL CONTROLLER + GENERATE GATE ===== */
+      var authModal=document.getElementById('authModal');
+      var authMode='signup', pendingAfterAuth=null;
+      function updateAccountUI(){ var b=document.getElementById('accountBtn'); if(!b) return;
+        if(isSignedIn()){ var em=(auth.user&&auth.user.email)||'Account'; b.textContent='👤 '+em.split('@')[0]; b.classList.add('is-auth'); b.title='Signed in as '+em+' — click to sign out'; }
+        else { b.textContent='👤 Sign in'; b.classList.remove('is-auth'); b.title='Sign in or create an account'; }
+      }
+      function setAuthMode(m){ authMode=m;
+        document.getElementById('authTitle').textContent = m==='signup'?'Create your account':'Welcome back';
+        document.getElementById('authSub').textContent = m==='signup'?'Save your work and generate shareable links — your story stays exactly as you left it.':'Sign in to generate your link — your story stays exactly as you left it.';
+        document.getElementById('authSubmit').textContent = m==='signup'?'Sign up & continue':'Sign in & continue';
+        document.getElementById('authToggleText').textContent = m==='signup'?'Already have an account?':'New here?';
+        document.getElementById('authToggleBtn').textContent = m==='signup'?'Sign in':'Create one';
+        document.getElementById('authPass').setAttribute('autocomplete', m==='signup'?'new-password':'current-password');
+      }
+      function openAuth(after){ pendingAfterAuth=after||null; document.getElementById('authError').textContent=''; setAuthMode('signup'); authModal.classList.add('show'); setTimeout(function(){ var e=document.getElementById('authEmail'); if(e&&!e.value) e.focus(); },60); }
+      function closeAuth(){ authModal.classList.remove('show'); pendingAfterAuth=null; }
+      function doAuthSubmit(){
+        var email=(document.getElementById('authEmail').value||'').trim();
+        var pw=document.getElementById('authPass').value||'';
+        var errEl=document.getElementById('authError');
+        var v=authValidate(email,pw); if(v){ errEl.textContent=v; return; }
+        var btn=document.getElementById('authSubmit'); var orig=btn.textContent; btn.disabled=true; btn.textContent='Working…'; errEl.textContent='';
+        var p = authMode==='signup' ? authSignUp(email,pw) : authSignIn(email,pw);
+        p.then(function(session){ saveAuth(session); var after=pendingAfterAuth; authModal.classList.remove('show'); pendingAfterAuth=null; btn.disabled=false; btn.textContent=orig; document.getElementById('authPass').value=''; if(typeof after==='function') after(); })
+         .catch(function(err){ btn.disabled=false; btn.textContent=orig; errEl.textContent=(err&&err.message)||'Something went wrong. Please try again.'; });
+      }
+      document.getElementById('authToggleBtn').addEventListener('click', function(){ setAuthMode(authMode==='signup'?'signin':'signup'); document.getElementById('authError').textContent=''; });
+      document.getElementById('authClose').addEventListener('click', closeAuth);
+      authModal.addEventListener('click', function(e){ if(e.target===authModal) closeAuth(); });
+      document.getElementById('authSubmit').addEventListener('click', doAuthSubmit);
+      document.getElementById('authPass').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); doAuthSubmit(); } });
+      document.getElementById('authEmail').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('authPass').focus(); } });
+      document.getElementById('accountBtn').addEventListener('click', function(){
+        if(isSignedIn()){ if(confirm('Sign out of '+((auth.user&&auth.user.email)||'your account')+'?')){ clearAuth(); } }
+        else { openAuth(null); }
+      });
+      updateAccountUI();
+
+      function runGenerate(){
         var c=document.getElementById('copyBtn'); c.textContent='Copy Link'; c.classList.remove('copied');
         var linkEl=document.getElementById('magicLink');
         modal.classList.add('show');
         linkEl.textContent = pendingUploads>0 ? 'Finishing media upload…' : 'Generating your link…';
         waitForUploads(function(){
         var st=serializeState();
+        if(auth.user&&auth.user.id) st.owner=auth.user.id;
         if(SB_ON){
           linkEl.textContent='Generating your link…';
           sbCreateLetter(st).then(function(res){
@@ -1637,11 +1729,17 @@
           linkEl.textContent=offlineLink(st);
         }
         }); // end waitForUploads
+      }
+      document.getElementById('generateBtn').addEventListener('click', function(){
+        // Gate behind an account — but the build stays intact (this is just an overlay, no refresh),
+        // and after sign-in we resume generating right where they left off.
+        if(!isSignedIn()){ openAuth(runGenerate); return; }
+        runGenerate();
       });
       function hideModal(){ modal.classList.remove('show'); }
       document.getElementById('modalClose').addEventListener('click', hideModal);
       modal.addEventListener('click', function(e){ if(e.target===modal) hideModal(); });
-      document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ hideModal(); closeMeme(); if(flowOpen) closeFullFlow(); draftsModal.classList.remove('show'); respModal.classList.remove('show'); sentModal.classList.remove('show'); } });
+      document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ hideModal(); closeMeme(); if(flowOpen) closeFullFlow(); draftsModal.classList.remove('show'); respModal.classList.remove('show'); sentModal.classList.remove('show'); authModal.classList.remove('show'); } });
       document.getElementById('copyBtn').addEventListener('click', function(){ var link=document.getElementById('magicLink').textContent; var btn=this;
         function done(){ btn.textContent='Copied ✓'; btn.classList.add('copied'); setTimeout(function(){ btn.textContent='Copy Link'; btn.classList.remove('copied'); },2000); }
         if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(done).catch(function(){ fallbackCopy(link); done(); }); } else { fallbackCopy(link); done(); }
