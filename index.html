@@ -328,6 +328,16 @@
     .trim-row input[type=range] { flex:1; accent-color:#E8B4B8; }
     .trim-time { width:3rem; text-align:right; font-size:.78rem; color:#3A3438; font-variant-numeric:tabular-nums; }
     .trim-dur { font-size:.78rem; color:rgba(58,52,56,0.6); margin:.5rem 0 .2rem; text-align:center; }
+    /* account button (signed-in initial) */
+    #accountBtn { display:inline-flex; align-items:center; gap:.1rem; }
+    .acct-dot { display:inline-flex; align-items:center; justify-content:center; width:1.3rem; height:1.3rem; border-radius:50%; background:#E8B4B8; color:#fff; font-size:.72rem; font-weight:700; margin-right:.45rem; flex:none; }
+    /* gentle character-cap upsell toast */
+    #capToast { position:fixed; left:50%; bottom:1.2rem; transform:translateX(-50%) translateY(160%); background:#3A3438; color:#FBF6F0; padding:.7rem .9rem; border-radius:.85rem; font-size:.82rem; box-shadow:0 14px 34px -12px rgba(0,0,0,0.45); z-index:130; display:flex; align-items:center; gap:.7rem; max-width:92vw; transition:transform .28s cubic-bezier(.22,1,.36,1); }
+    #capToast.show { transform:translateX(-50%) translateY(0); }
+    #capToast button { background:#E8B4B8; color:#3A3438; border:none; border-radius:.6rem; padding:.35rem .65rem; font-weight:700; font-size:.76rem; cursor:pointer; white-space:nowrap; }
+    /* required-answer nudge */
+    @keyframes sjNudge { 0%,100%{ transform:translateX(0); } 20%{ transform:translateX(-7px); } 40%{ transform:translateX(7px); } 60%{ transform:translateX(-4px); } 80%{ transform:translateX(4px); } }
+    .nudge { animation:sjNudge .42s ease; }
     /* auth modal */
     .auth-label { display:block; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(58,52,56,0.5); margin:0 0 .3rem; }
     .auth-error { color:#b4453f; font-size:.8rem; margin-top:.5rem; min-height:1rem; }
@@ -420,6 +430,7 @@
 
         <!-- Workspace toolbar -->
         <div class="ws-toolbar">
+          <button type="button" class="ws-btn" id="newBtn">🆕 New</button>
           <button type="button" class="ws-btn" id="saveDraftBtn">💾 Save Draft</button>
           <button type="button" class="ws-btn" id="myLettersBtn">📂 Drafts</button>
           <button type="button" class="ws-btn" id="sentBtn">📤 Sent &amp; Replies</button>
@@ -627,7 +638,11 @@
 
   <script>
     (function () {
-      var MAXLEN = 120, OPTMAX = 60;
+      var MAXLEN = 280;          // hard cap a card can hold without overflowing the phone screen (Premium limit)
+      var FREE_MAX = 120;        // free users get a shorter message
+      var OPTMAX = 60;
+      function effectiveMax(){ return (typeof isPremium==='function' && isPremium()) ? MAXLEN : FREE_MAX; }
+      function updateCharLimits(){ document.querySelectorAll('.has-counter').forEach(function(f){ f.maxLength=effectiveMax(); if(!effectiveMax()||f.value.length>effectiveMax()) f.value=f.value.slice(0,effectiveMax()); f.dispatchEvent(new Event('input',{bubbles:true})); }); }
 
       /* ===== BACKEND (Supabase) ===== */
       var SB_URL = 'https://ipkuyipqmeecuhsazuqy.supabase.co';
@@ -689,7 +704,7 @@
       var FREE_THEME='cream';
       var premiumExpires=0;
       function isPremium(){ return premiumExpires>Date.now(); }
-      function updatePremiumUI(){ document.body.classList.toggle('sj-free', !isPremium()); }
+      function updatePremiumUI(){ document.body.classList.toggle('sj-free', !isPremium()); try{ updateCharLimits(); }catch(e){} }
       function loadPremium(){
         if(!isSignedIn()||!auth.user||!SB_ON){ updatePremiumUI(); return Promise.resolve(); }
         return sbRpc('sj_premium_status',{ p_user_id:auth.user.id }).then(function(ts){ premiumExpires = ts? (new Date(ts).getTime()||0) : 0; updatePremiumUI(); }).catch(function(){ updatePremiumUI(); });
@@ -786,8 +801,27 @@
       function attachCounter(input){
         var wrap=input.closest('.field-wrap'); if(!wrap) return;
         var c=document.createElement('span'); c.className='char-count';
-        function upd(){ var n=input.value.length; c.textContent=n+' / '+MAXLEN; c.classList.toggle('at-limit', n>=MAXLEN); }
-        input.addEventListener('input', upd); upd(); wrap.appendChild(c);
+        input.maxLength=effectiveMax();
+        function upd(){ var m=effectiveMax(); input.maxLength=m; var n=input.value.length; c.textContent=n+' / '+m; c.classList.toggle('at-limit', n>=m); }
+        input.addEventListener('input', upd);
+        // when a free user tries to type past their cap, nudge them gently (max-length already blocked the keystroke)
+        input.addEventListener('keydown', function(e){
+          if(isPremium()) return;
+          if(input.value.length>=FREE_MAX && e.key && e.key.length===1 && !e.metaKey && !e.ctrlKey && !e.altKey && input.selectionStart===input.selectionEnd){ showCapToast(); }
+        });
+        upd(); wrap.appendChild(c);
+      }
+      /* gentle upsell toast when a free user hits the character cap */
+      var capToastEl=null, capToastT=0;
+      function showCapToast(){
+        var now=Date.now(); if(now-capToastT<4000) return; capToastT=now; // throttle, never spammy
+        if(!capToastEl){ capToastEl=document.createElement('div'); capToastEl.id='capToast';
+          capToastEl.innerHTML='Free messages stop at '+FREE_MAX+' characters. <button type="button" id="capToastUp">Go Premium for longer ✨</button>';
+          document.body.appendChild(capToastEl);
+          capToastEl.querySelector('#capToastUp').addEventListener('click', function(){ capToastEl.classList.remove('show'); if(typeof openPaywall==='function') openPaywall(null,{features:['Longer messages']}); });
+        }
+        capToastEl.classList.add('show');
+        clearTimeout(capToastEl._t); capToastEl._t=setTimeout(function(){ capToastEl.classList.remove('show'); }, 4200);
       }
 
       /* ===== MEDIA (Photo / Video, per block, with live img/video swap) ===== */
@@ -1133,7 +1167,8 @@
       var finalEl=null; // reference to the permanent Final Card editor block
       function uid(){ return 'blk'+(++idSeq); }
       // Custom blocks insert before the Final Card so it always closes the letter
-      function placeEditor(el){ if (finalEl && el!==finalEl) blocksWrap.insertBefore(el, finalEl); else blocksWrap.appendChild(el); }
+      // Always drop new screens just before the Final card (re-find it so we never use a stale reference).
+      function placeEditor(el){ var fin=blocksWrap.querySelector('[data-type="final"]'); if (fin && el!==fin) blocksWrap.insertBefore(el, fin); else blocksWrap.appendChild(el); }
 
       function emojiRowHTML(id, current){
         var keys=['hearts','sparkles','confetti','scales'];
@@ -1155,12 +1190,13 @@
           '<div class="msize-row"><span class="msize-lbl">Media size</span><input type="range" class="msize" id="msize-'+id+'" min="4.5" max="13" step="0.25" value="6.75" /></div>';
       }
 
-      function ctrlBtns(id,permanent){
-        if(permanent) return '';
+      function ctrlBtns(id, o){ o=o||{};
+        if(o.pinned) return ''; // envelope (first) & final card (last) stay put
         return '<span class="eb-ctrls">'+
           '<button type="button" class="eb-move" data-move="up" title="Move up">▲</button>'+
           '<button type="button" class="eb-move" data-move="down" title="Move down">▼</button>'+
-          '<button type="button" class="eb-remove" data-remove="'+id+'">✕</button></span>';
+          (o.permanent ? '' : '<button type="button" class="eb-remove" data-remove="'+id+'">✕</button>')+
+          '</span>';
       }
       function addStoryBlock(opts){
         opts=opts||{};
@@ -1176,11 +1212,10 @@
         var title = opts.title || (isFinal?'The Final Card':'Custom Story Block');
         var msgLabel = isFinal ? 'Final Message' : 'Message';
         el.innerHTML =
-          '<div class="eb-head">'+badge+'<span class="eb-title">'+title+'</span>'+ctrlBtns(id,permanent)+'</div>'+
-          '<label class="field-label">'+msgLabel+' <span style="text-transform:none;letter-spacing:0;font-weight:400;">(max 120)</span></label>'+
+          '<div class="eb-head">'+badge+'<span class="eb-title">'+title+'</span>'+ctrlBtns(id,{ permanent:permanent, pinned:(isFinal||!!opts.envelope) })+'</div>'+
+          '<label class="field-label">'+msgLabel+'</label>'+
           '<div class="field-wrap mb-3"><textarea class="field has-counter" data-role="text" rows="3" maxlength="'+MAXLEN+'" placeholder="Write your words…">'+(opts.text||'').replace(/</g,'&lt;')+'</textarea></div>'+
-          '<label class="field-label">Media</label>'+ mediaHTML(id)+
-          (opts.envelope ? '' : intrEditorHTML(id))+
+          (opts.envelope ? '' : ('<label class="field-label">Media</label>'+ mediaHTML(id) + intrEditorHTML(id)))+
           emojiRowHTML(id,emoji);
         placeEditor(el);
         wireBlockCommon(el, id);
@@ -1196,8 +1231,8 @@
         el.innerHTML =
           '<div class="eb-head"><span class="eb-badge badge-q">❓ Question</span>'+
             '<span class="eb-title">'+(opts.title||'Question &amp; Dropdown')+'</span>'+
-            ctrlBtns(id, opts.permanent)+'</div>'+
-          '<label class="field-label">Question <span style="text-transform:none;letter-spacing:0;font-weight:400;">(max 120)</span></label>'+
+            ctrlBtns(id, { permanent:opts.permanent })+'</div>'+
+          '<label class="field-label">Question</label>'+
           '<div class="field-wrap mb-3"><input class="field has-counter" data-role="question" type="text" maxlength="'+MAXLEN+'" placeholder="e.g. Where are we going on our date?" value="'+(opts.question||'').replace(/"/g,'&quot;')+'" /></div>'+
           '<label class="field-label">Options</label>'+
           '<div data-role="opts"></div>'+
@@ -1251,11 +1286,12 @@
         wireInteraction(el, id);
       }
 
-      // Reorder a custom block by swapping with the adjacent CUSTOM block (guided blocks & final stay fixed)
+      // Reorder ANY screen up/down. The envelope stays first and the final card stays last (can't cross them).
       function moveBlock(el, dir){
         var sib = dir==='up' ? el.previousElementSibling : el.nextElementSibling;
         if(!sib || !sib.classList.contains('eb')) return;
-        if(!sib.querySelector('[data-remove]')) return; // adjacent is a permanent/guided block — don't cross it
+        if(sib.getAttribute('data-type')==='final') return;     // can't drop below the final card
+        if(sib.getAttribute('data-envelope')==='1') return;     // can't rise above the envelope
         if(dir==='up') blocksWrap.insertBefore(el, sib); else blocksWrap.insertBefore(sib, el);
         buildPreview();
       }
@@ -1476,6 +1512,14 @@
         if(current){ current.classList.add('is-leaving'); setTimeout(function(){ current.classList.remove('is-active','is-leaving','is-entering'); enter(); },380); } else enter();
       }
       function pvAdvance(){ var arr=orderedScreens(); var cur=pvStage.querySelector('.pv-screen.is-active'); var i=arr.indexOf(cur); if(i>-1&&i<arr.length-1) pvShowEl(arr[i+1]); }
+      // A screen's question (if any) must be answered before the recipient can continue.
+      function interactionAnswered(screen){ if(!screen) return true;
+        var dd=screen.querySelector('.pv-dd'); if(dd && !dd.querySelector('.pv-dd-opt.selected')) return false;
+        var vote=screen.querySelector('.pv-vote'); if(vote && !vote.querySelector('.pv-vote-opt.selected')) return false;
+        var sh=screen.querySelector('.pv-short'); if(sh && !sh.classList.contains('sent')) return false;
+        return true;
+      }
+      function nudgeInteraction(screen){ if(!screen) return; var el=screen.querySelector('.pv-dd, .pv-vote, .pv-short'); if(!el) return; el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); }
       function pvReset(){ var arr=orderedScreens(); arr.forEach(function(s){ s.classList.remove('is-active','is-entering','is-leaving'); }); if(arr[0]) arr[0].classList.add('is-active'); resetEnvelopes(); }
       function resetEnvelopes(){ pvStage.querySelectorAll('.env-scene').forEach(function(sc){ sc.classList.remove('s1','s2','s3','s4'); delete sc.dataset.opened; }); }
       function openEnvelope(scene){
@@ -1530,6 +1574,8 @@
         // nav (continue)
         var nav=e.target.closest('[data-pv-nav]');
         if(nav){ var screen=nav.closest('.pv-screen'); var bid=screen&&screen.getAttribute('data-block');
+          // In play mode, a screen with a question must be answered before moving on.
+          if(playMode && !interactionAnswered(screen)){ nudgeInteraction(screen); return; }
           tactileBurst(nav, e, emojiOf[bid]||'hearts'); pvAdvance(); return; }
         // final CTA
         var cta=e.target.closest('#pv-cta');
@@ -1733,6 +1779,14 @@
       function doAutosave(){ if(playMode) return; if(LSset('sj:autosave', JSON.stringify(serializeState()))) flashSaved('Saved ✓'); }
       function flashSaved(t){ var h=document.getElementById('savedHint'); if(!h) return; h.textContent=t; setTimeout(function(){ if(h.textContent===t) h.textContent=''; }, 1600); }
 
+      document.getElementById('newBtn').addEventListener('click', function(){
+        if(!confirm('Start a new letter? Anything not saved as a draft will be cleared.')) return;
+        currentLetterId=genId(); lastPublish=null;
+        var sel=document.querySelector('.select-option.sel'); var preset=(sel&&sel.getAttribute('data-preset'))||'gratitude';
+        applyPreset(preset);
+        if(window.scrollTo){ try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(_){ window.scrollTo(0,0); } }
+        flashSaved('New letter ✨');
+      });
       document.getElementById('saveDraftBtn').addEventListener('click', function(){
         var st=serializeState();
         var name = (document.getElementById('selectValue').textContent||'Letter') + ' · ' + new Date().toLocaleDateString();
@@ -1969,8 +2023,8 @@
       var authModal=document.getElementById('authModal');
       var authMode='signup', pendingAfterAuth=null;
       function updateAccountUI(){ var b=document.getElementById('accountBtn'); if(!b) return;
-        if(isSignedIn()){ var em=(auth.user&&auth.user.email)||'Account'; b.textContent='👤 '+em.split('@')[0]; b.classList.add('is-auth'); b.title='Signed in as '+em+' — click to sign out'; }
-        else { b.textContent='👤 Sign in'; b.classList.remove('is-auth'); b.title='Sign in or create an account'; }
+        if(isSignedIn()){ var em=(auth.user&&auth.user.email)||''; var nm=(em.split('@')[0]||'You').replace(/[<>]/g,''); b.innerHTML='<span class="acct-dot">'+((nm.charAt(0)||'U').toUpperCase())+'</span>'+nm; b.classList.add('is-auth'); b.title='Signed in as '+em+' — click to sign out'; }
+        else { b.textContent='Sign in'; b.classList.remove('is-auth'); b.title='Sign in or create an account'; }
       }
       function setAuthMode(m){ authMode=m;
         document.getElementById('authTitle').textContent = m==='signup'?'Create your account':'Welcome back';
