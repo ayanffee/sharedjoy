@@ -169,37 +169,50 @@
       <div style="display:flex;justify-content:center;margin-bottom:2.2rem;">
         <div class="toggle">
           <button id="tgMonthly" class="on" onclick="setCycle('monthly')">Monthly</button>
-          <button id="tgAnnual" onclick="setCycle('annual')">Annual <span class="save-badge">Save 33%</span></button>
+          <button id="tgAnnual" onclick="setCycle('annual')">Annual <span class="save-badge">Save 20%</span></button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr;gap:1.5rem;max-width:54rem;margin:0 auto;" class="md:grid-cols-2">
+      <div style="display:grid;grid-template-columns:1fr;gap:1.4rem;max-width:66rem;margin:0 auto;" class="md:grid-cols-3">
         <div class="card" style="display:flex;flex-direction:column;">
-          <h3 class="serif" style="font-size:1.7rem;">Free</h3>
-          <p class="lead" style="font-size:.92rem;margin:.3rem 0 1rem;">Everything you need to make and send a lovely letter.</p>
-          <div class="price-num">&#8358;0</div>
-          <p style="font-size:.82rem;color:rgba(58,52,56,.45);margin-top:.2rem;">forever</p>
-          <ul style="list-style:none;padding:0;margin:1.3rem 0 1.6rem;display:flex;flex-direction:column;gap:.7rem;font-size:.92rem;">
+          <h3 class="serif" style="font-size:1.6rem;">Free</h3>
+          <p class="lead" style="font-size:.9rem;margin:.3rem 0 1rem;">Make and send a lovely letter, on us.</p>
+          <div class="price-num" style="font-size:2.6rem;">&#8358;0</div>
+          <p style="font-size:.8rem;color:rgba(58,52,56,.45);margin-top:.2rem;">forever</p>
+          <ul style="list-style:none;padding:0;margin:1.2rem 0 1.5rem;display:flex;flex-direction:column;gap:.65rem;font-size:.9rem;">
             <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Build full multi-screen letters</li>
-            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Photos, the cinematic envelope &amp; sharing link</li>
+            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Photos, cinematic envelope &amp; share link</li>
             <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> One theme &middot; short messages</li>
             <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> A question on any screen</li>
           </ul>
-          <a href="app.html" class="btn btn-soft" style="margin-top:auto;justify-content:center;">Start creating free</a>
+          <a href="app.html" class="btn btn-soft" style="margin-top:auto;justify-content:center;">Start free</a>
         </div>
         <div class="card" style="display:flex;flex-direction:column;border:2px solid var(--accent);position:relative;">
           <span style="position:absolute;top:-.8rem;left:1.6rem;background:var(--accent);color:#fff;font-size:.72rem;font-weight:700;padding:.25rem .7rem;border-radius:999px;">MOST LOVED</span>
-          <h3 class="serif" style="font-size:1.7rem;">Premium</h3>
-          <p class="lead" style="font-size:.92rem;margin:.3rem 0 1rem;">The full magic &mdash; for the letters that really matter.</p>
-          <div><span class="price-num" id="priceNum">&#8358;5,000</span><span id="priceCycle" style="color:rgba(58,52,56,.5);font-size:1rem;"> / month</span></div>
-          <p style="font-size:.82rem;color:rgba(58,52,56,.5);margin-top:.2rem;" id="priceSub">Billed monthly. Cancel anytime.</p>
-          <ul style="list-style:none;padding:0;margin:1.3rem 0 1.6rem;display:flex;flex-direction:column;gap:.7rem;font-size:.92rem;">
+          <h3 class="serif" style="font-size:1.6rem;">Premium</h3>
+          <p class="lead" style="font-size:.9rem;margin:.3rem 0 1rem;">The full magic, for the letters that really matter.</p>
+          <div><span class="price-num" id="regNum" style="font-size:2.6rem;">$20</span><span id="regCycle" style="color:rgba(58,52,56,.5);font-size:1rem;"> / month</span></div>
+          <p style="font-size:.8rem;color:rgba(58,52,56,.5);margin-top:.2rem;" id="regSub">Billed monthly. Cancel anytime.</p>
+          <ul style="list-style:none;padding:0;margin:1.2rem 0 1.5rem;display:flex;flex-direction:column;gap:.65rem;font-size:.9rem;">
             <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Everything in Free</li>
-            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Videos (with trim &amp; auto-shrink)</li>
+            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Videos (trim &amp; auto-shrink)</li>
             <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> All themes &amp; longer messages</li>
-            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Add unlimited extra screens</li>
+            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Extra screens</li>
             <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> See replies &amp; responses</li>
           </ul>
           <a href="app.html" class="btn btn-dark" style="margin-top:auto;justify-content:center;">Go Premium</a>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;">
+          <h3 class="serif" style="font-size:1.6rem;">Big Event &#128141;</h3>
+          <p class="lead" style="font-size:.9rem;margin:.3rem 0 1rem;">For weddings &amp; big celebrations with lots of guests.</p>
+          <div><span class="price-num" id="evNum" style="font-size:2.6rem;">$100</span><span id="evCycle" style="color:rgba(58,52,56,.5);font-size:1rem;"> / month</span></div>
+          <p style="font-size:.8rem;color:rgba(58,52,56,.5);margin-top:.2rem;" id="evSub">Billed monthly. Cancel anytime.</p>
+          <ul style="list-style:none;padding:0;margin:1.2rem 0 1.5rem;display:flex;flex-direction:column;gap:.65rem;font-size:.9rem;">
+            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Everything in Premium</li>
+            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Built for large guest lists &amp; RSVPs</li>
+            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Highest response limits</li>
+            <li style="display:flex;gap:.6rem;"><span class="tick">&#10003;</span> Priority support</li>
+          </ul>
+          <a href="app.html" class="btn btn-soft" style="margin-top:auto;justify-content:center;">Choose Big Event</a>
         </div>
       </div>
       <p style="text-align:center;font-size:.82rem;color:rgba(58,52,56,.45);margin-top:1.4rem;" id="regionNote">Prices shown for your region. Secure payments via Paystack.</p>
@@ -216,7 +229,7 @@
         <details open><summary>Does the person I send it to need an account or app?</summary><p>No. They just tap your link and it plays in their browser on any phone or computer. Accounts are only for creators who want to publish and track replies.</p></details>
         <details><summary>Can I use it for a wedding or event with lots of guests?</summary><p>Yes &mdash; that's a favourite use. Add a question (dropdown, short answer or vote) to a screen and guests must answer to continue, so you collect RSVPs and see every reply in your dashboard.</p></details>
         <details><summary>What's free vs Premium?</summary><p>You can build and send real letters for free. Premium unlocks videos, all themes, longer messages, unlimited extra screens, and viewing replies/responses.</p></details>
-        <details><summary>How does billing work?</summary><p>Premium is a subscription &mdash; choose monthly or annual (annual saves about 33%). It renews automatically and you can cancel anytime. Payments are handled securely by Paystack.</p></details>
+        <details><summary>How does billing work?</summary><p>Premium is a subscription &mdash; choose monthly or annual (annual saves 20%). It renews automatically and you can cancel anytime. Payments are handled securely by Paystack.</p></details>
         <details><summary>Do my photos and videos really travel in the link?</summary><p>Yes. Everything you add is saved and delivered with the letter, so recipients see your media exactly as you arranged it.</p></details>
       </div>
     </div>
@@ -245,16 +258,22 @@
   <script>
     var AFRICA=['DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CG','CD','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW'];
     var AFRICA_PREMIUM=['ZA','EG','MA','KE','MU','BW','NA','SC','TN','DZ'];
-    var PRICES={ local:{ monthly:'₦5,000', annual:'₦40,000', annualMo:'₦3,333' }, global:{ monthly:'$12', annual:'$96', annualMo:'$8' } };
+    // Annual = monthly × 12 × 0.8 (20% off).
+    var PRICES={
+      local:{ regular:{ m:'₦5,000', y:'₦48,000', ym:'₦4,000' }, event:{ m:'₦50,000', y:'₦480,000', ym:'₦40,000' } },
+      global:{ regular:{ m:'$20', y:'$192', ym:'$16' }, event:{ m:'$100', y:'$960', ym:'$80' } }
+    };
     var region='local', cycle='monthly';
+    function setTier(id, t){
+      var num=document.getElementById(id+'Num'), cy=document.getElementById(id+'Cycle'), sub=document.getElementById(id+'Sub');
+      if(!num) return;
+      if(cycle==='monthly'){ num.textContent=t.m; cy.textContent=' / month'; sub.textContent='Billed monthly. Cancel anytime.'; }
+      else { num.textContent=t.y; cy.textContent=' / year'; sub.textContent='About '+t.ym+'/mo — save 20%. Cancel anytime.'; }
+    }
     function render(){
       var p=PRICES[region];
-      var numEl=document.getElementById('priceNum'), cyEl=document.getElementById('priceCycle'), subEl=document.getElementById('priceSub');
-      if(cycle==='monthly'){ numEl.textContent=p.monthly; cyEl.textContent=' / month'; subEl.textContent='Billed monthly. Cancel anytime.'; }
-      else { numEl.textContent=p.annual; cyEl.textContent=' / year'; subEl.textContent='That’s about '+p.annualMo+'/mo — save 33%. Cancel anytime.'; }
-      document.getElementById('regionNote').textContent = region==='local'
-        ? 'Prices shown in Naira for Nigeria & much of Africa. Outside Africa it’s $12/mo or $96/yr. Secure payments via Paystack.'
-        : 'Prices shown in USD. In Nigeria & much of Africa it’s ₦5,000/mo or ₦40,000/yr. Secure payments via Paystack.';
+      setTier('reg', p.regular); setTier('ev', p.event);
+      document.getElementById('regionNote').textContent='Prices shown for your region — ₦ in Nigeria & much of Africa, $ elsewhere. Secure payments via Paystack.';
     }
     window.setCycle=function(c){ cycle=c; document.getElementById('tgMonthly').classList.toggle('on',c==='monthly'); document.getElementById('tgAnnual').classList.toggle('on',c==='annual'); render(); };
     render();
