@@ -338,6 +338,21 @@
     /* required-answer nudge */
     @keyframes sjNudge { 0%,100%{ transform:translateX(0); } 20%{ transform:translateX(-7px); } 40%{ transform:translateX(7px); } 60%{ transform:translateX(-4px); } 80%{ transform:translateX(4px); } }
     .nudge { animation:sjNudge .42s ease; }
+    /* toolbar "My Letters" dropdown */
+    .ws-menu-wrap { position:relative; display:inline-block; }
+    .ws-menu { position:absolute; top:calc(100% + .4rem); left:0; min-width:12rem; background:#fff; border:1px solid rgba(58,52,56,0.1); border-radius:.8rem; box-shadow:0 18px 40px -16px rgba(58,52,56,0.4); padding:.3rem; z-index:70; display:none; }
+    .ws-menu.open { display:block; }
+    .ws-menu-item { position:relative; display:block; width:100%; text-align:left; background:none; border:none; cursor:pointer; padding:.55rem .7rem; border-radius:.55rem; font-size:.85rem; color:#3A3438; }
+    .ws-menu-item:hover { background:#FBF1EE; }
+    /* sticky action bar (Preview + Generate always reachable) */
+    #actionBar { position:fixed; left:0; right:0; bottom:0; z-index:55; display:flex; gap:.6rem; justify-content:center; align-items:center; padding:.6rem 1rem calc(.6rem + env(safe-area-inset-bottom,0px)); background:linear-gradient(to top, rgba(251,246,240,0.98), rgba(251,246,240,0.86)); backdrop-filter:blur(8px); border-top:1px solid rgba(58,52,56,0.08); }
+    body.booting #actionBar, body.play-loading #actionBar, body.play-mode #actionBar { display:none; }
+    .ab-btn { border:none; cursor:pointer; border-radius:.85rem; font-weight:600; font-size:.92rem; padding:.8rem 1.1rem; transition:transform .12s, filter .15s; }
+    .ab-btn:active { transform:scale(.97); }
+    .ab-preview { background:#FBF1EE; color:#3A3438; border:1px solid rgba(58,52,56,0.12); }
+    .ab-generate { background:#3A3438; color:#FBF6F0; flex:1; max-width:24rem; }
+    .ab-generate:hover { filter:brightness(1.08); }
+    body { padding-bottom:5rem; } /* room so the fixed bar never covers content */
     /* auth modal */
     .auth-label { display:block; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(58,52,56,0.5); margin:0 0 .3rem; }
     .auth-error { color:#b4453f; font-size:.8rem; margin-top:.5rem; min-height:1rem; }
@@ -389,6 +404,10 @@
 
 <body class="booting sj-free">
   <div id="accountDock"><button type="button" class="ws-btn" id="accountBtn">👤 Sign in</button></div>
+  <div id="actionBar">
+    <button type="button" class="ab-btn ab-preview" id="abPreview">👁️ Preview</button>
+    <button type="button" class="ab-btn ab-generate" id="abGenerate">Generate &#10024;</button>
+  </div>
   <div id="boot"><div class="boot-dot">✦</div><div class="boot-text">opening a little moment…</div></div>
 
   <div class="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14" id="dashboard">
@@ -432,10 +451,21 @@
         <div class="ws-toolbar">
           <button type="button" class="ws-btn" id="newBtn">🆕 New</button>
           <button type="button" class="ws-btn" id="saveDraftBtn">💾 Save Draft</button>
-          <button type="button" class="ws-btn" id="myLettersBtn">📂 Drafts</button>
-          <button type="button" class="ws-btn" id="sentBtn">📤 Sent &amp; Replies</button>
-          <button type="button" class="ws-btn sj-lock" id="responsesBtn">📊 Responses</button>
+          <div class="ws-menu-wrap">
+            <button type="button" class="ws-btn" id="lettersMenuBtn">📁 My Letters ▾</button>
+            <div class="ws-menu" id="lettersMenu">
+              <button type="button" class="ws-menu-item" data-letters="drafts">📂 Drafts</button>
+              <button type="button" class="ws-menu-item sj-lock" data-letters="sent">📤 Sent &amp; Replies</button>
+              <button type="button" class="ws-menu-item sj-lock" data-letters="responses">📊 Responses</button>
+            </div>
+          </div>
           <span class="ws-saved" id="savedHint"></span>
+          <!-- real handler targets (hidden) — the menu above triggers these so existing logic stays intact -->
+          <span style="display:none;">
+            <button type="button" id="myLettersBtn"></button>
+            <button type="button" id="sentBtn"></button>
+            <button type="button" id="responsesBtn"></button>
+          </span>
         </div>
 
         <!-- Blocks render here -->
@@ -450,8 +480,8 @@
           </div>
         </div>
 
-        <button type="button" class="btn-preview mb-3" id="previewBtn">👁️ Preview Full Flow</button>
-        <button class="btn-generate" id="generateBtn">Generate Magical Link &#10024;</button>
+        <button type="button" class="btn-preview mb-3" id="previewBtn" style="display:none;">👁️ Preview Full Flow</button>
+        <button class="btn-generate" id="generateBtn" style="display:none;">Generate Magical Link &#10024;</button>
       </section>
 
       <!-- ============ RIGHT: PREVIEW + THEME ============ -->
@@ -1710,6 +1740,24 @@
       // Every screen is the same kind now (a message with an optional question), so just add one directly.
       if(addMenu) addMenu.style.display='none';
       addBtn.addEventListener('click', function(e){ e.stopPropagation(); addStoryBlock(); });
+
+      /* ===== TIDY TOOLBAR: "My Letters" dropdown + sticky action bar ===== */
+      (function(){
+        var lmBtn=document.getElementById('lettersMenuBtn'), lm=document.getElementById('lettersMenu');
+        if(lmBtn&&lm){
+          lmBtn.addEventListener('click', function(e){ e.stopPropagation(); lm.classList.toggle('open'); });
+          lm.querySelectorAll('[data-letters]').forEach(function(it){ it.addEventListener('click', function(){
+            lm.classList.remove('open');
+            var which=it.getAttribute('data-letters');
+            var id = which==='drafts'?'myLettersBtn' : which==='sent'?'sentBtn' : 'responsesBtn';
+            var t=document.getElementById(id); if(t) t.click(); // run the existing handler (incl. premium gating)
+          }); });
+          document.addEventListener('click', function(e){ if(!e.target.closest('.ws-menu-wrap')) lm.classList.remove('open'); });
+        }
+        var abP=document.getElementById('abPreview'), abG=document.getElementById('abGenerate');
+        if(abP) abP.addEventListener('click', function(){ var b=document.getElementById('previewBtn'); if(b) b.click(); });
+        if(abG) abG.addEventListener('click', function(){ var b=document.getElementById('generateBtn'); if(b) b.click(); });
+      })();
       document.addEventListener('click', function(e){
         if(!document.getElementById('occasionSelect').contains(e.target)) closeMenu();
         if(!e.target.closest('.add-wrap')) addMenu.classList.remove('open');
