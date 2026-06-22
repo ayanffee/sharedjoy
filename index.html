@@ -413,7 +413,7 @@
         <div class="ws-toolbar">
           <button type="button" class="ws-btn" id="saveDraftBtn">💾 Save Draft</button>
           <button type="button" class="ws-btn" id="myLettersBtn">📂 Drafts</button>
-          <button type="button" class="ws-btn sj-lock" id="sentBtn">📤 Sent &amp; Replies</button>
+          <button type="button" class="ws-btn" id="sentBtn">📤 Sent &amp; Replies</button>
           <button type="button" class="ws-btn sj-lock" id="responsesBtn">📊 Responses</button>
           <button type="button" class="ws-btn sj-lock" id="musicBtn" aria-pressed="false">🎵 Music: Off</button>
           <span class="ws-saved" id="savedHint"></span>
@@ -610,7 +610,7 @@
       <div style="text-align:center;margin-top:1rem;"><span class="pw-price">&#8358;5,000<small> / week</small></span></div>
       <button class="btn-pay" id="paywallPay">Unlock with Premium &#128274;</button>
       <button class="modal-close" id="paywallClose">Maybe later</button>
-      <div class="pw-note">Secure payment via Paystack · Weekly access · Cancel anytime by not renewing.</div>
+      <div class="pw-note">Secure payment via Paystack · Renews automatically every week · Cancel anytime from your Paystack receipt.</div>
     </div>
   </div>
 
@@ -673,6 +673,7 @@
 
       /* ===== PREMIUM / PAYSTACK ===== */
       var PAYSTACK_PK='pk_live_9c9fd70f398c69636c9bde1c27c053df958842a4';
+      var PAYSTACK_PLAN='PLN_8akcmcsmbugnjun'; // weekly ₦5,000 plan — makes the charge auto-renew every week
       var PRICE_NGN=5000;
       var FREE_THEME='cream';
       var premiumExpires=0;
@@ -693,7 +694,7 @@
         if(typeof PaystackPop==='undefined'){ if(onFail) onFail('Payment library didn’t load — check your connection and retry.'); return; }
         try{
           var handler=PaystackPop.setup({
-            key:PAYSTACK_PK, email:auth.user.email, amount:PRICE_NGN*100, currency:'NGN',
+            key:PAYSTACK_PK, email:auth.user.email, amount:PRICE_NGN*100, currency:'NGN', plan:PAYSTACK_PLAN,
             metadata:{ user_id:auth.user.id, plan:'weekly', custom_fields:[{ display_name:'Plan', variable_name:'plan', value:'SharedJoy Weekly' }] },
             callback:function(resp){ verifyPayment(resp.reference).then(function(ok){ if(ok){ if(onPaid) onPaid(); } else if(onFail){ onFail('We couldn’t confirm the payment yet. If you were charged, it can take a moment — try Generate again shortly.'); } }); },
             onClose:function(){ /* user dismissed */ }
@@ -1726,7 +1727,7 @@
         var k='sj:rsvp:'+(currentLetterId||'anon'); var arr=[]; try{ arr=JSON.parse(LSget(k)||'[]'); }catch(e){}
         renderTally(arr);
       }
-      document.getElementById('responsesBtn').addEventListener('click', function(){ renderResponses(); respModal.classList.add('show'); });
+      document.getElementById('responsesBtn').addEventListener('click', function(){ requirePro(function(){ renderResponses(); respModal.classList.add('show'); }); });
       document.getElementById('respClose').addEventListener('click', function(){ respModal.classList.remove('show'); });
       respModal.addEventListener('click', function(e){ if(e.target===respModal) respModal.classList.remove('show'); });
 
@@ -1749,11 +1750,11 @@
         list.forEach(function(it){
           var row=document.createElement('div'); row.className='list-row';
           row.innerHTML='<div class="meta"><div class="t"></div><div class="s">loading…</div></div>'+
-            '<button class="mini" data-copy>Copy link</button><button class="mini" data-resp>Replies</button>';
+            '<button class="mini" data-copy>Copy link</button><button class="mini sj-lock" data-resp>Replies</button>';
           row.querySelector('.t').textContent=it.name+' · /'+it.slug;
           var sEl=row.querySelector('.s');
           row.querySelector('[data-copy]').addEventListener('click', function(){ var l=appBase()+'?l='+it.slug; (navigator.clipboard&&navigator.clipboard.writeText? navigator.clipboard.writeText(l):Promise.reject()).then(function(){ this.textContent='Copied ✓'; }.bind(this)).catch(function(){ fallbackCopy(l); }); });
-          row.querySelector('[data-resp]').addEventListener('click', function(){ currentLetterId=currentLetterId; lastPublish={slug:it.slug,token:it.token}; renderResponses(); sentModal.classList.remove('show'); respModal.classList.add('show'); });
+          row.querySelector('[data-resp]').addEventListener('click', function(){ requirePro(function(){ lastPublish={slug:it.slug,token:it.token}; renderResponses(); sentModal.classList.remove('show'); respModal.classList.add('show'); }); });
           sentList.appendChild(row);
           if(SB_ON && it.token){ sbGetStats(it.slug, it.token).then(function(st){ sEl.textContent=(st&&st.views||0)+' views · '+(st&&st.responses||0)+' replies'; }).catch(function(){ sEl.textContent='stats unavailable'; }); }
           else { sEl.textContent=new Date(it.at).toLocaleString(); }
@@ -1938,6 +1939,13 @@
         paywallModal.classList.add('show');
       }
       function closePaywall(){ paywallModal.classList.remove('show'); pendingAfterPay=null; }
+      // Pro-only action: needs an ACTIVE subscription. Signs in if needed, paywalls if not subscribed, then runs `after`.
+      function requirePro(after, feats){
+        feats=feats||['Replies & responses'];
+        if(isPremium()){ if(after) after(); return; }
+        if(!isSignedIn()){ openAuth(function(){ loadPremium().then(function(){ if(isPremium()){ if(after) after(); } else { openPaywall(after,{features:feats}); } }); }); return; }
+        openPaywall(after, { features:feats });
+      }
       document.getElementById('paywallClose').addEventListener('click', closePaywall);
       paywallModal.addEventListener('click', function(e){ if(e.target===paywallModal) closePaywall(); });
       document.getElementById('paywallPay').addEventListener('click', function(){
