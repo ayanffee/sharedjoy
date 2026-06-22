@@ -357,11 +357,11 @@
     body.booting #accountDock, body.play-loading #accountDock, body.play-mode #accountDock { display:none; }
     @media (max-width:640px){ #accountDock { top:.5rem; right:.5rem; } }
     /* per-screen interaction editor */
-    .intr { border:1px dashed rgba(58,52,56,0.18); border-radius:.9rem; padding:.6rem; margin:.1rem 0 1rem; background:rgba(251,241,238,0.35); }
-    .intr-types { display:flex; flex-wrap:wrap; gap:.4rem; }
-    .itype { border:1px solid rgba(58,52,56,0.14); background:#fff; color:rgba(58,52,56,0.7); border-radius:.7rem; padding:.4rem .65rem; font-size:.78rem; font-weight:500; cursor:pointer; transition:all .15s; }
-    .itype:hover { border-color:#E8B4B8; }
-    .itype.active { background:#3A3438; color:#FBF6F0; border-color:#3A3438; }
+    .intr { border:none; border-radius:0; padding:0; margin:.2rem 0 1rem; background:transparent; }
+    .intr-types { display:inline-flex; gap:0; background:#FBF1EE; border:1px solid rgba(58,52,56,0.07); border-radius:.7rem; padding:.2rem; max-width:100%; flex-wrap:wrap; }
+    .itype { border:none; background:transparent; color:rgba(58,52,56,0.6); border-radius:.55rem; padding:.38rem .7rem; font-size:.76rem; font-weight:500; cursor:pointer; transition:all .15s; }
+    .itype:hover { color:#3A3438; }
+    .itype.active { background:#3A3438; color:#FBF6F0; }
     .intr-body { margin-top:.6rem; display:flex; flex-direction:column; gap:.5rem; }
     .intr-opts { display:flex; flex-direction:column; gap:.45rem; }
     /* preview: interaction prompt + vote + short answer */
@@ -432,7 +432,7 @@
 
         <!-- Add Custom Block dropdown (inserts before the Final Card) -->
         <div class="add-wrap">
-          <button type="button" class="btn-add sj-lock" id="addBtn"><span style="font-size:1.05rem;">➕</span> Add Custom Block</button>
+          <button type="button" class="btn-add sj-lock" id="addBtn"><span style="font-size:1.05rem;">➕</span> Add a Screen</button>
           <div class="add-menu" id="addMenu">
             <div class="add-opt" data-add="story"><span class="ic">📖</span><span><span class="t">Story Block</span><br><span class="s">An image + heartfelt message</span></span></div>
             <div class="add-opt" data-add="question"><span class="ic">❓</span><span><span class="t">Question &amp; Dropdown Block</span><br><span class="s">Ask a question with custom options</span></span></div>
@@ -1327,7 +1327,7 @@
         el.querySelectorAll('[data-itype-btn]').forEach(function(b){ b.addEventListener('click', function(){
           setIntrType(el, id, b.getAttribute('data-itype-btn')); buildPreview(); scheduleSave();
         }); });
-        var prompt=el.querySelector('[data-role="iprompt"]'); if(prompt) prompt.addEventListener('input', function(){ var t=document.getElementById('pv-iq-'+id); if(t) t.textContent=prompt.value.trim()||'Your question…'; scheduleSave(); });
+        var prompt=el.querySelector('[data-role="iprompt"]'); if(prompt) prompt.addEventListener('input', function(){ var t=document.getElementById('pv-iq-'+id); if(t){ t.textContent=prompt.value.trim(); } else { buildPreview(); } scheduleSave(); });
         var addBtn=el.querySelector('[data-iaddopt="'+id+'"]'); if(addBtn) addBtn.addEventListener('click', function(){ addIntrOption(el,id,''); });
       }
       function readInteraction(el){
@@ -1350,7 +1350,7 @@
       // build the live interaction markup for a screen (recipient/preview)
       function intrPreviewHTML(id, intr){
         if(!intr || !intr.type || intr.type==='none') return '';
-        var q='<h3 class="pv-iq" id="pv-iq-'+id+'">'+escapeHtml(intr.prompt||'Your question…')+'</h3>';
+        var q = intr.prompt ? '<h3 class="pv-iq" id="pv-iq-'+id+'">'+escapeHtml(intr.prompt)+'</h3>' : '';
         if(intr.type==='dropdown'){
           return q+'<div class="pv-dd" id="pv-dd-'+id+'" data-dd="'+id+'">'+
             '<button type="button" class="pv-dd-trigger" data-dd-trigger="'+id+'"><span data-dd-label>Choose an option…</span>'+
@@ -1621,7 +1621,8 @@
         addStoryBlock({ permanent:true, defer:true, envelope:!!p.s1.envelope, emoji:p.s1.emoji, title:'Screen 1 · '+p.s1.title, text:p.s1.text });
         addStoryBlock({ permanent:true, defer:true, emoji:p.s2.emoji, title:'Screen 2 · '+p.s2.title, text:p.s2.text });
         if (p.s3.type==='question')
-          addQuestionBlock({ permanent:true, defer:true, emoji:p.s3.emoji, title:'Screen 3 · '+p.s3.title, question:p.s3.text, options:p.s3.options });
+          // Every screen is now a message with the optional question picker — the preset just pre-fills a dropdown.
+          addStoryBlock({ permanent:true, defer:true, emoji:p.s3.emoji, title:'Screen 3 · '+p.s3.title, text:p.s3.text, interaction:{ type:'dropdown', prompt:'', options:p.s3.options } });
         else
           addStoryBlock({ permanent:true, defer:true, emoji:p.s3.emoji, title:'Screen 3 · '+p.s3.title, text:p.s3.text });
         finalEl = addStoryBlock({ permanent:true, defer:true, type:'final', id:'final', emoji:p.s4.emoji, title:'Screen 4 · '+p.s4.title, text:p.s4.text });
@@ -1643,11 +1644,9 @@
 
       /* ===== ADD-SCREEN MENU ===== */
       var addBtn=document.getElementById('addBtn'), addMenu=document.getElementById('addMenu');
-      addBtn.addEventListener('click', function(e){ e.stopPropagation(); addMenu.classList.toggle('open'); });
-      addMenu.querySelectorAll('.add-opt').forEach(function(o){ o.addEventListener('click', function(){
-        var t=o.getAttribute('data-add'); addMenu.classList.remove('open');
-        if(t==='story') addStoryBlock(); else addQuestionBlock();
-      }); });
+      // Every screen is the same kind now (a message with an optional question), so just add one directly.
+      if(addMenu) addMenu.style.display='none';
+      addBtn.addEventListener('click', function(e){ e.stopPropagation(); addStoryBlock(); });
       document.addEventListener('click', function(e){
         if(!document.getElementById('occasionSelect').contains(e.target)) closeMenu();
         if(!e.target.closest('.add-wrap')) addMenu.classList.remove('open');
