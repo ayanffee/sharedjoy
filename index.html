@@ -319,6 +319,12 @@
     .crop-actions button { flex:1; border:none; cursor:pointer; border-radius:.8rem; padding:.7rem 1rem; font-weight:600; font-size:.85rem; }
     .crop-apply { background:#3A3438; color:#FBF6F0; }
     .crop-cancel { background:#FBF1EE; color:#3A3438; }
+    /* video trim */
+    .trim-row { display:flex; align-items:center; gap:.6rem; margin:.7rem 0 .1rem; }
+    .trim-lbl { width:2.6rem; font-size:.66rem; letter-spacing:.07em; text-transform:uppercase; color:rgba(58,52,56,0.5); }
+    .trim-row input[type=range] { flex:1; accent-color:#E8B4B8; }
+    .trim-time { width:3rem; text-align:right; font-size:.78rem; color:#3A3438; font-variant-numeric:tabular-nums; }
+    .trim-dur { font-size:.78rem; color:rgba(58,52,56,0.6); margin:.5rem 0 .2rem; text-align:center; }
     /* auth modal */
     .auth-label { display:block; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(58,52,56,0.5); margin:0 0 .3rem; }
     .auth-error { color:#b4453f; font-size:.8rem; margin-top:.5rem; min-height:1rem; }
@@ -415,7 +421,6 @@
           <button type="button" class="ws-btn" id="myLettersBtn">📂 Drafts</button>
           <button type="button" class="ws-btn" id="sentBtn">📤 Sent &amp; Replies</button>
           <button type="button" class="ws-btn sj-lock" id="responsesBtn">📊 Responses</button>
-          <button type="button" class="ws-btn sj-lock" id="musicBtn" aria-pressed="false">🎵 Music: Off</button>
           <span class="ws-saved" id="savedHint"></span>
         </div>
 
@@ -461,19 +466,7 @@
           <p class="text-[0.7rem] text-charcoal/40 mt-2">Backgrounds, highlights &amp; accents update across every screen.</p>
         </div>
 
-        <div class="panel mt-5">
-          <label class="field-label">Soundtrack &middot; paste a song link</label>
-          <input id="musicUrl" class="field" type="url" spellcheck="false" placeholder="YouTube, Spotify, or .mp3 link…" />
-          <div class="flex items-center gap-2 mt-2">
-            <label class="field-label" style="margin:0;">Start at</label>
-            <input id="musicStartEl" class="field" type="text" inputmode="numeric" placeholder="0:00" style="width:5.5rem; padding:.5rem .7rem;" />
-            <span class="text-[0.66rem] text-charcoal/40">mm:ss (optional)</span>
-          </div>
-          <div class="music-status" id="musicStatus"></div>
-          <p class="text-[0.66rem] text-charcoal/40 mt-1">YouTube &amp; direct audio play the full song and start on the envelope tap. Toggle with the 🎵 button.</p>
-        </div>
-
-        <p class="text-charcoal/40 text-xs mt-4 max-w-[18rem] text-center">Uploaded photos are embedded in the link so recipients see them. Videos preview locally but don’t travel yet.</p>
+        <p class="text-charcoal/40 text-xs mt-4 max-w-[18rem] text-center">Photos and videos are uploaded so recipients see them in the link.</p>
       </section>
     </div>
   </div>
@@ -516,6 +509,21 @@
       <div class="crop-actions">
         <button type="button" class="crop-cancel" id="cropCancel">Cancel</button>
         <button type="button" class="crop-apply" id="cropApply">Use photo</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="trimModal">
+    <div class="crop-card" style="max-width:30rem;">
+      <h3 class="font-serif text-2xl text-charcoal/90" style="text-align:center;">Trim your video</h3>
+      <div class="crop-hint">Drag the handles to pick the part you want to keep</div>
+      <video id="trimVid" playsinline muted preload="auto" style="width:100%;border-radius:.8rem;background:#000;max-height:38vh;display:block;"></video>
+      <div class="trim-row"><span class="trim-lbl">Start</span><input type="range" id="trimStart" min="0" max="100" value="0" step="0.1" /><span class="trim-time" id="trimStartT">0:00</span></div>
+      <div class="trim-row"><span class="trim-lbl">End</span><input type="range" id="trimEnd" min="0" max="100" value="100" step="0.1" /><span class="trim-time" id="trimEndT">0:00</span></div>
+      <div class="trim-dur" id="trimDur">Selected: 0:00</div>
+      <div class="crop-actions">
+        <button type="button" class="crop-cancel" id="trimSkip">Use full video</button>
+        <button type="button" class="crop-apply" id="trimApply">Apply trim</button>
       </div>
     </div>
   </div>
@@ -707,7 +715,6 @@
         var f=[];
         var hasVideo=Object.keys(mediaSlots).some(function(id){ return kindPref[id]==='video' && mediaSlots[id] && mediaSlots[id].video && mediaSlots[id].video.url; });
         if(hasVideo) f.push('Video on a screen');
-        if(typeof musicOn!=='undefined' && musicOn) f.push('Background music');
         if(typeof currentTheme!=='undefined' && currentTheme && currentTheme!==FREE_THEME) f.push('A premium theme colour');
         if(blocksWrap && blocksWrap.querySelector('.eb [data-remove]')) f.push('A custom block');
         return f;
@@ -932,6 +939,62 @@
         };
       }
 
+      /* ===== VIDEO TRIM (pick the start/end to keep; re-encodes only that segment, downscaled) ===== */
+      function fmtTime(s){ s=Math.max(0,Math.round(s||0)); var m=Math.floor(s/60), ss=s%60; return m+':'+(ss<10?'0':'')+ss; }
+      var trimModal=document.getElementById('trimModal');
+      function openTrim(file, cb){
+        var url; try{ url=URL.createObjectURL(file); }catch(e){ return cb(file); }
+        var vid=document.getElementById('trimVid');
+        var startEl=document.getElementById('trimStart'), endEl=document.getElementById('trimEnd');
+        var dur=0, settled=false;
+        function done(result){ if(settled) return; settled=true; trimModal.classList.remove('show'); try{ vid.pause(); }catch(e){} vid.removeAttribute('src'); try{ vid.load(); }catch(e){} try{ URL.revokeObjectURL(url); }catch(e){} cb(result); }
+        function S(){ return (parseFloat(startEl.value)/100)*dur; }
+        function E(){ return (parseFloat(endEl.value)/100)*dur; }
+        function update(){ document.getElementById('trimStartT').textContent=fmtTime(S()); document.getElementById('trimEndT').textContent=fmtTime(E()); document.getElementById('trimDur').textContent='Selected: '+fmtTime(Math.max(0,E()-S())); }
+        startEl.value=0; endEl.value=100;
+        vid.onloadedmetadata=function(){ dur=vid.duration||0; update(); };
+        startEl.oninput=function(){ if(parseFloat(startEl.value)>=parseFloat(endEl.value)) startEl.value=Math.max(0,parseFloat(endEl.value)-1); try{ vid.currentTime=S(); }catch(e){} update(); };
+        endEl.oninput=function(){ if(parseFloat(endEl.value)<=parseFloat(startEl.value)) endEl.value=Math.min(100,parseFloat(startEl.value)+1); try{ vid.currentTime=E(); }catch(e){} update(); };
+        document.getElementById('trimSkip').onclick=function(){ done(file); };
+        document.getElementById('trimApply').onclick=function(){
+          var s=S(), e=E();
+          if(e<=s || (s<0.1 && (dur-e)<0.1)){ done(file); return; } // nothing meaningful trimmed
+          var btn=this; btn.disabled=true; btn.textContent='Trimming… 0%';
+          trimVideo(file, s, e, function(p){ btn.textContent='Trimming… '+Math.round(p*100)+'%'; }, function(out){ btn.disabled=false; btn.textContent='Apply trim'; done(out||file); });
+        };
+        vid.src=url; trimModal.classList.add('show');
+      }
+      function trimVideo(file, start, end, onProg, cb){
+        if(!window.MediaRecorder){ return cb(file); }
+        var mime=pickRecMime(); if(!mime){ return cb(file); }
+        var url; try{ url=URL.createObjectURL(file); }catch(e){ return cb(file); }
+        var vid=document.createElement('video'); vid.muted=true; vid.playsInline=true; vid.preload='auto'; vid.src=url;
+        var done=false, started=false, guard=0;
+        function finish(b){ if(done) return; done=true; if(guard) clearTimeout(guard); try{ URL.revokeObjectURL(url); }catch(e){} cb(b); }
+        guard=setTimeout(function(){ if(!done && (!vid.duration || vid.currentTime===0)) finish(file); }, 30000);
+        vid.onerror=function(){ finish(file); };
+        vid.onloadedmetadata=function(){
+          try{
+            var maxDim=720, w=vid.videoWidth||maxDim, h=vid.videoHeight||maxDim;
+            var scale=Math.min(1, maxDim/Math.max(w,h));
+            var cw=Math.max(2,Math.round(w*scale/2)*2), ch=Math.max(2,Math.round(h*scale/2)*2);
+            var cv=document.createElement('canvas'); cv.width=cw; cv.height=ch; var ctx=cv.getContext('2d');
+            if(!cv.captureStream){ return finish(file); }
+            var stream=cv.captureStream(30); var rec;
+            try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:1500000 }); }catch(e){ try{ rec=new MediaRecorder(stream,{ mimeType:mime }); }catch(e2){ return finish(file); } }
+            var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
+            rec.onstop=function(){ var ext=mime.indexOf('mp4')>-1?'.mp4':'.webm'; var out=new Blob(chunks,{type:mime.split(';')[0]}); try{ out.name=(file.name||'video').replace(/\.[^.]+$/,'')+'-trim'+ext; }catch(e){} finish(out.size? out : file); };
+            var span=Math.max(0.1, end-start);
+            function draw(){ if(done) return; if(vid.paused||vid.ended) return; if(vid.currentTime>=end){ try{ vid.pause(); if(rec.state!=='inactive') rec.stop(); }catch(e){} return; } try{ ctx.drawImage(vid,0,0,cw,ch); }catch(e){} if(onProg) onProg(Math.min(0.99,(vid.currentTime-start)/span)); requestAnimationFrame(draw); }
+            function startRec(){ if(started||done) return; started=true; try{ rec.start(1000); }catch(e){ return finish(file); } var pp=vid.play(); if(pp&&pp.catch) pp.catch(function(){ finish(file); }); draw(); }
+            vid.onseeked=function(){ startRec(); };
+            vid.onended=function(){ try{ if(rec.state!=='inactive') rec.stop(); }catch(e){} };
+            if(start>0.1){ try{ vid.currentTime=start; }catch(e){ startRec(); } } else { startRec(); }
+            setTimeout(function(){ if(!done){ try{ vid.pause(); if(rec.state!=='inactive') rec.stop(); }catch(e){} } }, Math.min(20*60, span+10)*1000);
+          }catch(e){ finish(file); }
+        };
+      }
+
       /* ===== FILE HANDLING (images go through crop; everything kept shareable so links never drop media) ===== */
       var pendingUploads=0;
       function handleFile(id,file){
@@ -969,25 +1032,28 @@
             .then(function(){ pendingUploads=Math.max(0,pendingUploads-1); });
         }
 
-        var sizeMB=file.size/1048576;
-        // Compress large clips in-browser (downscale + re-encode) so they fit under the host cap
-        if(sizeMB>20 && window.MediaRecorder){
-          if(title) title.textContent='Compressing video… 0%';
-          pendingUploads++; // hold link generation while we shrink
-          compressVideo(file, function(p){ if(title) title.textContent='Compressing video… '+Math.round(p*100)+'%'; }, function(result){
-            pendingUploads=Math.max(0,pendingUploads-1);
-            if(title) title.textContent='Uploading video…';
-            uploadVideo(result||file);
-          });
-          return;
-        }
-        // small enough already
-        if(sizeMB>MAX_VIDEO_MB){
-          if(title) title.textContent='Video too large ('+Math.round(sizeMB)+'MB)';
-          if(sub) sub.textContent='Max ~'+MAX_VIDEO_MB+'MB. Trim it shorter and retry.';
-          return;
-        }
-        uploadVideo(file);
+        // Let them trim first. A trimmed clip is already downscaled + re-encoded, so it uploads directly.
+        openTrim(file, function(chosen){
+          if(chosen && chosen!==file){ if(title) title.textContent='Uploading video…'; uploadVideo(chosen); return; }
+          // used the full video — compress if large, else upload as-is
+          var sizeMB=file.size/1048576;
+          if(sizeMB>20 && window.MediaRecorder){
+            if(title) title.textContent='Compressing video… 0%';
+            pendingUploads++; // hold link generation while we shrink
+            compressVideo(file, function(p){ if(title) title.textContent='Compressing video… '+Math.round(p*100)+'%'; }, function(result){
+              pendingUploads=Math.max(0,pendingUploads-1);
+              if(title) title.textContent='Uploading video…';
+              uploadVideo(result||file);
+            });
+            return;
+          }
+          if(sizeMB>MAX_VIDEO_MB){
+            if(title) title.textContent='Video too large ('+Math.round(sizeMB)+'MB)';
+            if(sub) sub.textContent='Max ~'+MAX_VIDEO_MB+'MB. Trim it shorter and retry.';
+            return;
+          }
+          uploadVideo(file);
+        });
       }
       function wireMedia(id){
         kindPref[id]=kindPref[id]||'image';
