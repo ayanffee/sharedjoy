@@ -873,7 +873,8 @@
           img.src=url; img.style.width=iw+'px'; img.style.height=ih+'px'; img.style.left=ix+'px'; img.style.top=iy+'px';
           var maxSel=Math.min(iw,ih); var minSel=Math.max(70, Math.round(maxSel*0.5)); // keep it cute: never below ~50%
           cropState={ url:url, im:im, nw:nw, nh:nh, iw:iw, ih:ih, ix:ix, iy:iy, maxSel:maxSel, minSel:minSel,
-                      sel:maxSel, sx:ix+(iw-maxSel)/2, sy:iy+(ih-maxSel)/2, cb:cb };
+                      sel:maxSel, sx:ix+(iw-maxSel)/2, sy:iy+(ih-maxSel)/2, cb:cb,
+                      alpha:/image\/(png|webp|gif)/i.test(file.type||'') }; // stickers/PNGs keep transparency
           sizeEl.value=100; layoutSel(); modal.classList.add('show');
         };
         im.onerror=function(){ try{ URL.revokeObjectURL(url); }catch(e){} cb(null); };
@@ -896,8 +897,9 @@
             var OUT=760, natScale=s.nw/s.iw;
             var cropNX=(s.sx-s.ix)*natScale, cropNY=(s.sy-s.iy)*natScale, cropN=s.sel*natScale;
             var cv=document.createElement('canvas'); cv.width=OUT; cv.height=OUT;
+            // canvas starts fully transparent; PNG export keeps the sticker's see-through areas, JPEG for photos (smaller)
             cv.getContext('2d').drawImage(s.im, cropNX, cropNY, cropN, cropN, 0,0, OUT, OUT);
-            var out=cv.toDataURL('image/jpeg',0.85); closeCrop(); cb(out||null);
+            var out=s.alpha ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg',0.85); closeCrop(); cb(out||null);
           }catch(e){ closeCrop(); cb(null); }
         });
       })();
@@ -1012,7 +1014,7 @@
             // The cropped data URL is set immediately, so the image ALWAYS travels in the saved letter
             setScreenMedia(id, dataUrl, 'image', { isLocal:false, label: shortLabel(file.name) });
             // Background: upload to storage to keep the saved letter lightweight, then swap to the hosted URL
-            if(SB_ON){ var blob=dataURLtoBlob(dataUrl); if(blob){ try{ blob.name='photo.jpg'; }catch(e){} pendingUploads++;
+            if(SB_ON){ var blob=dataURLtoBlob(dataUrl); if(blob){ try{ blob.name='photo.'+(/^data:image\/png/i.test(dataUrl)?'png':'jpg'); }catch(e){} pendingUploads++;
               sbUpload(blob).then(function(url){ setScreenMedia(id, url, 'image', { isLocal:false, label: shortLabel(file.name) }); })
                 .catch(function(){}).then(function(){ pendingUploads=Math.max(0,pendingUploads-1); }); } }
           });
