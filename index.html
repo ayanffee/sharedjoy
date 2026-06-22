@@ -131,7 +131,10 @@
     .pv-headline { font-family:'Cormorant Garamond',Georgia,serif; font-size:1.08rem; line-height:1.4; color:var(--pv-text); margin:0 0 1.1rem; font-weight:500; word-wrap:break-word; overflow-wrap:anywhere; }
     .pv-accent { color:var(--pv-accent); font-weight:600; }
 
-    .pv-media { position:relative; width:6.75rem; height:6.75rem; margin:0 auto 1rem; border-radius:1rem; padding:.4rem; background:linear-gradient(145deg,var(--pv-accent) 0%,rgba(58,52,56,0.25) 220%); box-shadow:0 16px 34px -18px rgba(58,52,56,0.5),inset 0 0 0 1px rgba(255,255,255,0.4); flex:none; }
+    .pv-media { position:relative; width:var(--pvm,6.75rem); height:var(--pvm,6.75rem); margin:0 auto 1rem; border-radius:1rem; padding:.4rem; background:linear-gradient(145deg,var(--pv-accent) 0%,rgba(58,52,56,0.25) 220%); box-shadow:0 16px 34px -18px rgba(58,52,56,0.5),inset 0 0 0 1px rgba(255,255,255,0.4); flex:none; max-width:100%; }
+    .msize-row { display:flex; align-items:center; gap:.6rem; margin:.7rem 0 .1rem; }
+    .msize-lbl { font-size:.66rem; letter-spacing:.07em; text-transform:uppercase; color:rgba(58,52,56,0.5); white-space:nowrap; }
+    .msize-row input[type=range] { flex:1; accent-color:#E8B4B8; }
     .pv-media-inner { width:100%; height:100%; border-radius:.75rem; overflow:hidden; background:#FBF6F0; box-shadow:inset 0 0 0 2px rgba(255,255,255,0.7); }
     .pv-media img { width:100%; height:100%; object-fit:cover; display:block; transition:opacity .4s; }
     .pv-media.loading img { opacity:.35; }
@@ -790,6 +793,8 @@
       /* ===== MEDIA (Photo / Video, per block, with live img/video swap) ===== */
       var mediaSlots={};  // id -> { image:{url,isLocal,label}|null, video:{...}|null }
       var kindPref={};    // id -> 'image' | 'video' (active tab)
+      var mediaSizeOf={}; // id -> media frame size in rem (creator-adjustable)
+      function applyMediaSize(id){ var f=pvFrame(id); if(f && mediaSizeOf[id]) f.style.setProperty('--pvm', mediaSizeOf[id]+'rem'); }
       var ACCEPT_ALL='image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime';
       var MAX_VIDEO_MB=48; // Supabase upload cap is ~50MB
       function pvFrame(id){ return document.querySelector('[data-media-for="pv-img-'+id+'"]'); }
@@ -1074,6 +1079,8 @@
           zone.addEventListener('drop',function(e){ e.preventDefault(); zone.classList.remove('dragging'); handleFile(id, e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]); }); }
         if(fileInput) fileInput.addEventListener('change',function(){ handleFile(id, fileInput.files&&fileInput.files[0]); });
         if(memeBtn) memeBtn.addEventListener('click',function(e){ e.stopPropagation(); openMeme(id); });
+        var ms=document.getElementById('msize-'+id);
+        if(ms) ms.addEventListener('input', function(){ mediaSizeOf[id]=parseFloat(ms.value); applyMediaSize(id); scheduleSave(); });
       }
 
       /* ===== MEME MODAL ===== */
@@ -1142,7 +1149,8 @@
             '<div class="dz-thumb" id="thumb-'+id+'">'+PH_SVG+'</div>'+
             '<div class="dz-text"><div class="dz-title" id="dz-title-'+id+'">Choose a photo or drag &amp; drop</div><div class="dz-sub" id="dz-sub-'+id+'">PNG, JPG, JPEG, GIF</div></div>'+
           '</div>'+
-          '<button type="button" class="meme-btn" data-screen="'+id+'"><span>🔍</span> Search Memes &amp; GIFs</button>';
+          '<button type="button" class="meme-btn" data-screen="'+id+'"><span>🔍</span> Search Memes &amp; GIFs</button>'+
+          '<div class="msize-row"><span class="msize-lbl">Media size</span><input type="range" class="msize" id="msize-'+id+'" min="4.5" max="13" step="0.25" value="6.75" /></div>';
       }
 
       function ctrlBtns(id,permanent){
@@ -1174,6 +1182,7 @@
           emojiRowHTML(id,emoji);
         placeEditor(el);
         wireBlockCommon(el, id);
+        if(opts.mediaSize){ mediaSizeOf[id]=opts.mediaSize; var msz=document.getElementById('msize-'+id); if(msz) msz.value=opts.mediaSize; }
         if(opts.interaction) applyInteraction(el, id, opts.interaction);
         if(!opts.defer){ buildPreview(); focusFirst(el); }
         return el;
@@ -1250,7 +1259,7 @@
       }
 
       function removeBlock(id, el){
-        revokeMedia(id); delete emojiOf[id]; delete kindPref[id];
+        revokeMedia(id); delete emojiOf[id]; delete kindPref[id]; delete mediaSizeOf[id];
         el.parentNode && el.parentNode.removeChild(el);
         buildPreview();
       }
@@ -1445,7 +1454,7 @@
         // restore media + options + first active
         blocks.forEach(function(el){
           var id=el.getAttribute('data-id'), type=el.getAttribute('data-type');
-          if(type==='question'){ updateQuestionOptions(id); } else { restoreMedia(id); refreshIntr(id); }
+          if(type==='question'){ updateQuestionOptions(id); } else { restoreMedia(id); refreshIntr(id); applyMediaSize(id); }
         });
 
         var first=pvStage.querySelector('.pv-screen'); if(first) first.classList.add('is-active');
@@ -1605,7 +1614,7 @@
         var p=PRESETS[name]; if(!p) return;
         // wipe state + all blocks (template switch resets the guided flow)
         Object.keys(mediaSlots).forEach(function(k){ revokeMedia(k); });
-        mediaSlots={}; kindPref={}; emojiOf={}; idSeq=0; finalEl=null;
+        mediaSlots={}; kindPref={}; emojiOf={}; mediaSizeOf={}; idSeq=0; finalEl=null;
         blocksWrap.innerHTML='';
         addStoryBlock({ permanent:true, defer:true, envelope:!!p.s1.envelope, emoji:p.s1.emoji, title:'Screen 1 · '+p.s1.title, text:p.s1.text });
         addStoryBlock({ permanent:true, defer:true, emoji:p.s2.emoji, title:'Screen 2 · '+p.s2.title, text:p.s2.text });
@@ -1677,7 +1686,7 @@
           var o={ type:type, emoji:emojiOf[id]||'hearts', permanent:!el.querySelector('[data-remove]') };
           if(el.getAttribute('data-envelope')==='1') o.envelope=true;
           if(type==='question'){ o.question=el.querySelector('[data-role="question"]').value; o.options=readOptions(el); }
-          else { o.text=el.querySelector('[data-role="text"]').value; var intr=readInteraction(el); if(intr) o.interaction=intr; }
+          else { o.text=el.querySelector('[data-role="text"]').value; var intr=readInteraction(el); if(intr) o.interaction=intr; if(mediaSizeOf[id]) o.mediaSize=mediaSizeOf[id]; }
           var slot=mediaSlots[id]; var kind=kindPref[id]||'image';
           // Include any durable media: hosted http(s) URLs (preferred) or inline data: URLs (fallback so photos still travel).
           // blob: URLs are local-only and are healed into hosted URLs by ensureHostedMedia() before this runs.
@@ -1692,7 +1701,7 @@
       function buildFromState(state){
         if(!state || !state.blocks) return;
         Object.keys(mediaSlots).forEach(function(k){ revokeMedia(k); });
-        mediaSlots={}; kindPref={}; emojiOf={}; idSeq=0; finalEl=null; blocksWrap.innerHTML='';
+        mediaSlots={}; kindPref={}; emojiOf={}; mediaSizeOf={}; idSeq=0; finalEl=null; blocksWrap.innerHTML='';
         currentLetterId = state.id || genId();
         state.blocks.forEach(function(b,idx){
           var num=idx+1, el;
@@ -1700,7 +1709,7 @@
             el=addQuestionBlock({ defer:true, permanent:b.permanent, emoji:b.emoji, title:(b.permanent?('Screen '+num+' · The Dropdown Question'):'Custom Question'), question:b.question||'', options:(b.options&&b.options.length?b.options:['Option 1','Option 2']) });
           } else {
             var isFinal=b.type==='final';
-            el=addStoryBlock({ defer:true, permanent:b.permanent, type:(isFinal?'final':'story'), id:(isFinal?'final':undefined), envelope:b.envelope, emoji:b.emoji, title:(b.permanent?('Screen '+num+(isFinal?' · The Final Card':(b.envelope?' · The Envelope Hook':' · Story'))):'Custom Story Block'), text:b.text||'', interaction:b.interaction });
+            el=addStoryBlock({ defer:true, permanent:b.permanent, type:(isFinal?'final':'story'), id:(isFinal?'final':undefined), envelope:b.envelope, emoji:b.emoji, title:(b.permanent?('Screen '+num+(isFinal?' · The Final Card':(b.envelope?' · The Envelope Hook':' · Story'))):'Custom Story Block'), text:b.text||'', interaction:b.interaction, mediaSize:b.mediaSize });
             if(isFinal) finalEl=el;
           }
           var id=el.getAttribute('data-id');
