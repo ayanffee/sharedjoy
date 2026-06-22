@@ -1984,7 +1984,8 @@
       }
       document.getElementById('authToggleBtn').addEventListener('click', function(){ setAuthMode(authMode==='signup'?'signin':'signup'); document.getElementById('authError').textContent=''; });
       document.getElementById('authClose').addEventListener('click', closeAuth);
-      authModal.addEventListener('click', function(e){ if(e.target===authModal) closeAuth(); });
+      // NOTE: intentionally NO backdrop-click-to-close here — it was accidentally dismissing the form
+      // while people clicked near the fields to type. Only the Cancel button (or a successful sign-in) closes it.
       document.getElementById('authSubmit').addEventListener('click', doAuthSubmit);
       document.getElementById('authPass').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); doAuthSubmit(); } });
       document.getElementById('authEmail').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('authPass').focus(); } });
@@ -2066,7 +2067,7 @@
       function hideModal(){ modal.classList.remove('show'); }
       document.getElementById('modalClose').addEventListener('click', hideModal);
       modal.addEventListener('click', function(e){ if(e.target===modal) hideModal(); });
-      document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ hideModal(); closeMeme(); if(flowOpen) closeFullFlow(); draftsModal.classList.remove('show'); respModal.classList.remove('show'); sentModal.classList.remove('show'); authModal.classList.remove('show'); paywallModal.classList.remove('show'); } });
+      document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ hideModal(); closeMeme(); if(flowOpen) closeFullFlow(); draftsModal.classList.remove('show'); respModal.classList.remove('show'); sentModal.classList.remove('show'); paywallModal.classList.remove('show'); } });
       document.getElementById('copyBtn').addEventListener('click', function(){ var link=document.getElementById('magicLink').textContent; var btn=this;
         function done(){ btn.textContent='Copied ✓'; btn.classList.add('copied'); setTimeout(function(){ btn.textContent='Copy Link'; btn.classList.remove('copied'); },2000); }
         if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(done).catch(function(){ fallbackCopy(link); done(); }); } else { fallbackCopy(link); done(); }
