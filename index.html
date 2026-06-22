@@ -629,7 +629,8 @@
       <h3 class="font-serif text-3xl text-charcoal/90 mb-1 text-center">You're using premium features</h3>
       <p class="text-charcoal/55 text-sm text-center mb-3">Your letter is ready — unlock these to generate and share it:</p>
       <ul class="pw-feats" id="paywallFeatures"></ul>
-      <div style="text-align:center;margin-top:1rem;"><span class="pw-price">&#8358;5,000<small> / week</small></span></div>
+      <div style="text-align:center;margin-top:1rem;"><span class="pw-price" id="pwPrice">&#8358;5,000<small> / week</small></span></div>
+      <div class="pw-note" id="pwPriceNote" style="margin-top:.35rem;"></div>
       <button class="btn-pay" id="paywallPay">Unlock with Premium &#128274;</button>
       <button class="modal-close" id="paywallClose">Maybe later</button>
       <div class="pw-note">Secure payment via Paystack · Renews automatically every week · Cancel anytime from your Paystack receipt.</div>
@@ -699,8 +700,23 @@
 
       /* ===== PREMIUM / PAYSTACK ===== */
       var PAYSTACK_PK='pk_live_9c9fd70f398c69636c9bde1c27c053df958842a4';
-      var PAYSTACK_PLAN='PLN_8akcmcsmbugnjun'; // weekly ₦5,000 plan — makes the charge auto-renew every week
-      var PRICE_NGN=5000;
+      var PLAN_LOCAL='PLN_8akcmcsmbugnjun';   // ₦5,000 / week — home + developing-Africa markets
+      var PLAN_GLOBAL='PLN_z3r2ou0kjg4xkgo';  // ₦21,000 / week ≈ $15 — outside Africa + better-off African markets
+      // Africa ISO-2 codes
+      var AFRICA = ['DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CG','CD','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW','EH','YT','RE','SH'];
+      // Better-off African markets that pay the $15 (global) tier alongside the rest of the world
+      var AFRICA_PREMIUM = ['ZA','EG','MA','KE','MU','BW','NA','SC','TN','DZ'];
+      var sjCountry='', priceTier=null;
+      function computeTier(){
+        var c=(sjCountry||'').toUpperCase();
+        var localTier = c && AFRICA.indexOf(c)>-1 && AFRICA_PREMIUM.indexOf(c)<0;
+        if(localTier || !c) priceTier={ key:'local', plan:PLAN_LOCAL, amount:500000, label:'₦5,000', note:'' };
+        else priceTier={ key:'global', plan:PLAN_GLOBAL, amount:2100000, label:'$15', note:'Billed as ₦21,000 — your bank converts it to about $15.' };
+        updatePaywallPrice();
+      }
+      function updatePaywallPrice(){ var p=document.getElementById('pwPrice'); if(p&&priceTier) p.innerHTML=priceTier.label+'<small> / week</small>'; var n=document.getElementById('pwPriceNote'); if(n) n.textContent=(priceTier&&priceTier.note)||''; }
+      function detectRegion(){ try{ fetch('https://get.geojs.io/v1/ip/country.json').then(function(r){ return r.json(); }).then(function(j){ sjCountry=((j&&(j.country||j.country_code))||'').toUpperCase(); computeTier(); }).catch(function(){ computeTier(); }); }catch(e){ computeTier(); } }
+      computeTier(); // default (local) until geo resolves
       var FREE_THEME='cream';
       var premiumExpires=0;
       function isPremium(){ return premiumExpires>Date.now(); }
@@ -719,9 +735,10 @@
         if(!auth.user){ if(onFail) onFail('Please sign in first.'); return; }
         if(typeof PaystackPop==='undefined'){ if(onFail) onFail('Payment library didn’t load — check your connection and retry.'); return; }
         try{
+          var t=priceTier||{ plan:PLAN_LOCAL, amount:500000, key:'local' };
           var handler=PaystackPop.setup({
-            key:PAYSTACK_PK, email:auth.user.email, amount:PRICE_NGN*100, currency:'NGN', plan:PAYSTACK_PLAN,
-            metadata:{ user_id:auth.user.id, plan:'weekly', custom_fields:[{ display_name:'Plan', variable_name:'plan', value:'SharedJoy Weekly' }] },
+            key:PAYSTACK_PK, email:auth.user.email, amount:t.amount, currency:'NGN', plan:t.plan,
+            metadata:{ user_id:auth.user.id, plan:'weekly', tier:t.key, country:sjCountry, custom_fields:[{ display_name:'Plan', variable_name:'plan', value:'SharedJoy Weekly ('+t.key+')' }] },
             callback:function(resp){ verifyPayment(resp.reference).then(function(ok){ if(ok){ if(onPaid) onPaid(); } else if(onFail){ onFail('We couldn’t confirm the payment yet. If you were charged, it can take a moment — try Generate again shortly.'); } }); },
             onClose:function(){ /* user dismissed */ }
           });
@@ -2059,6 +2076,7 @@
       });
       updateAccountUI();
       loadPremium();
+      detectRegion(); // pick ₦5,000 vs $15 by country
 
       /* ===== PAYWALL CONTROLLER + PREMIUM GATING ===== */
       var paywallModal=document.getElementById('paywallModal');
