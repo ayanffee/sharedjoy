@@ -1627,7 +1627,7 @@
         // final CTA
         var cta=e.target.closest('#pv-cta');
         if(cta){ tactileBurst(cta, e, emojiOf['final']||'hearts');
-          if(playMode){ window.location.href = location.pathname; return; } // viral loop -> open the editor
+          if(playMode){ if(EMBED){ try{ window.open(location.pathname,'_blank'); }catch(_o){} pvReset(); /* replay demo from envelope */ return; } window.location.href = location.pathname; return; } // viral loop -> open the editor
           pvReset();
           if(!flowOpen && window.scrollTo){ try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(_){ window.scrollTo(0,0); } } return; }
       });
@@ -1767,6 +1767,7 @@
          STATE SERIALIZE  ·  SHAREABLE LINK  ·  PLAY MODE
          ========================================================= */
       var playMode=false;
+      var EMBED=false; try{ EMBED=new URLSearchParams(location.search||'').get('embed')==='1'; }catch(_e){}
       var currentLetterId=null;
       function genId(){ return 'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
@@ -2227,7 +2228,7 @@
         }
       }
       function showPlayError(msg){ playMode=true; document.body.classList.add('play-mode'); leaveBoot(); playStageHost.innerHTML='<div style="color:#fff;text-align:center;padding:2rem;font-family:Cormorant Garamond,serif;font-size:1.1rem;">'+msg+'</div>'; }
-      document.getElementById('playCreate').addEventListener('click', function(e){ e.preventDefault(); window.location.href=location.pathname; });
+      document.getElementById('playCreate').addEventListener('click', function(e){ e.preventDefault(); if(EMBED){ try{ window.open(location.pathname,'_blank'); }catch(_o){} return; } window.location.href=location.pathname; });
 
       (function init(){
         var qs=new URLSearchParams(location.search||'');
