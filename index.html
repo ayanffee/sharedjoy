@@ -276,5 +276,25 @@
     render();
     try{ fetch('https://get.geojs.io/v1/ip/country.json').then(function(r){return r.json();}).then(function(j){ var c=((j&&(j.country||j.country_code))||'').toUpperCase(); var localTier = c && AFRICA.indexOf(c)>-1 && AFRICA_PREMIUM.indexOf(c)<0; region = (localTier||!c)?'local':'global'; render(); }).catch(function(){}); }catch(e){}
   </script>
+  <!-- ===== Behavior analytics (clicks, pageviews, drop-off) → Supabase ===== -->
+  <script>
+  (function(){
+    var U='https://ipkuyipqmeecuhsazuqy.supabase.co', K='sb_publishable_jrV1lI0jaEKhySHiHho51Q_bgWT16oc';
+    var sid; try{ sid=localStorage.getItem('sj:sid'); if(!sid){ sid=Date.now().toString(36)+Math.random().toString(36).slice(2,8); localStorage.setItem('sj:sid',sid);} }catch(e){ sid='anon'; }
+    function send(name, props, keep){ try{ fetch(U+'/rest/v1/rpc/sj_log_event',{method:'POST',keepalive:!!keep,headers:{'apikey':K,'Authorization':'Bearer '+K,'Content-Type':'application/json'},body:JSON.stringify({p_name:name,p_path:location.pathname,p_session:sid,p_props:props||{}})}).catch(function(){}); }catch(e){} }
+    window.sjTrack=send;
+    send('pageview',{ref:(document.referrer||'').slice(0,120),w:window.innerWidth});
+    document.addEventListener('click', function(e){
+      var el=e.target.closest('a,button,[role=button]');
+      if(!el) return;
+      var label=(el.getAttribute('aria-label')||el.id||(el.textContent||'').trim().slice(0,50)||el.className||el.tagName||'').toString().slice(0,60);
+      send('click',{label:label, tag:(el.tagName||'').toLowerCase(), href:(el.getAttribute&&el.getAttribute('href'))||''});
+    }, true);
+    var start=Date.now(), left=false;
+    function leave(){ if(left) return; left=true; send('leave',{seconds:Math.round((Date.now()-start)/1000)}, true); }
+    document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='hidden') leave(); });
+    window.addEventListener('pagehide', leave);
+  })();
+  </script>
 </body>
 </html>

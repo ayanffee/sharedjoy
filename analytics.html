@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SharedJoy · Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --cream:#FBF6F0; --char:#3A3438; --rose:#C98A8E; --line:rgba(58,52,56,.12); }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--cream); color:var(--char); font-family:Inter,system-ui,sans-serif; padding:24px; }
+  h1{ font-family:'Cormorant Garamond',serif; font-weight:600; font-size:2rem; margin:0 0 2px; }
+  .sub{ color:rgba(58,52,56,.55); font-size:.9rem; margin-bottom:18px; }
+  .row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
+  .kpi{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 20px; min-width:150px; flex:1; }
+  .kpi .n{ font-size:2rem; font-weight:600; }
+  .kpi .l{ font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; color:rgba(58,52,56,.5); }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media(max-width:780px){ .grid{ grid-template-columns:1fr; } }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .card h2{ font-family:'Cormorant Garamond',serif; font-size:1.3rem; margin:0 0 10px; }
+  table{ width:100%; border-collapse:collapse; font-size:.86rem; }
+  td{ padding:6px 4px; border-bottom:1px solid var(--line); }
+  td.c{ text-align:right; color:var(--rose); font-weight:600; white-space:nowrap; }
+  .muted{ color:rgba(58,52,56,.5); }
+  select,button{ font:inherit; padding:7px 12px; border-radius:9px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+  .bar{ height:6px; background:var(--rose); border-radius:4px; display:inline-block; vertical-align:middle; margin-left:8px; opacity:.5; }
+  #msg{ padding:40px; text-align:center; color:rgba(58,52,56,.6); }
+</style>
+</head>
+<body>
+  <h1>SharedJoy Analytics</h1>
+  <div class="sub">What people do on your site — clicks, pages, and where they leave.</div>
+  <div style="margin-bottom:16px;">
+    Range:
+    <select id="days">
+      <option value="1">Today</option>
+      <option value="7" selected>Last 7 days</option>
+      <option value="30">Last 30 days</option>
+    </select>
+    <button id="refresh">Refresh</button>
+  </div>
+  <div id="msg">Loading…</div>
+  <div id="dash" style="display:none;">
+    <div class="row" id="kpis"></div>
+    <div class="grid">
+      <div class="card"><h2>What they press (top clicks)</h2><table id="clicks"></table></div>
+      <div class="card"><h2>Pages viewed</h2><table id="paths"></table></div>
+      <div class="card"><h2>Event breakdown</h2><table id="names"></table></div>
+      <div class="card"><h2>Recent activity</h2><table id="recent"></table></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  var U='https://ipkuyipqmeecuhsazuqy.supabase.co', K='sb_publishable_jrV1lI0jaEKhySHiHho51Q_bgWT16oc';
+  var msg=document.getElementById('msg'), dash=document.getElementById('dash');
+  function sess(){ try{ return JSON.parse(localStorage.getItem('sj:auth')||'{}'); }catch(e){ return {}; } }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  function rows(el, arr, key, max){
+    el.innerHTML=''; if(!arr||!arr.length){ el.innerHTML='<tr><td class="muted">No data yet</td></tr>'; return; }
+    var top=Math.max.apply(null, arr.map(function(r){return +r.c||0;}))||1;
+    arr.slice(0,max||20).forEach(function(r){
+      var w=Math.round(((+r.c||0)/top)*60);
+      el.insertAdjacentHTML('beforeend','<tr><td>'+esc(r[key]||'(none)')+'<span class="bar" style="width:'+w+'px"></span></td><td class="c">'+(r.c||0)+'</td></tr>');
+    });
+  }
+  async function freshTok(){
+    var s=sess(); if(!s.access_token) return null;
+    // refresh (tokens expire) so auth.uid() resolves admin
+    try{
+      var r=await fetch(U+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'apikey':K,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});
+      if(r.ok){ var d=await r.json(); if(d.access_token){ try{ localStorage.setItem('sj:auth',JSON.stringify(Object.assign({},s,d))); }catch(e){} return d.access_token; } }
+    }catch(e){}
+    return s.access_token;
+  }
+  async function load(){
+    msg.style.display='block'; dash.style.display='none'; msg.textContent='Loading…';
+    var tok=await freshTok();
+    if(!tok){ msg.innerHTML='Please sign in on the app first, then reload this page.<br><a href="app.html">Open the app →</a>'; return; }
+    var days=document.getElementById('days').value;
+    var r=await fetch(U+'/rest/v1/rpc/sj_analytics',{method:'POST',headers:{'apikey':K,'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({p_days:+days})});
+    var d=await r.json().catch(function(){return null;});
+    if(!d){ msg.innerHTML='This dashboard is for the site owner only. Sign in as the admin account on the app, then reload.'; return; }
+    msg.style.display='none'; dash.style.display='block';
+    document.getElementById('kpis').innerHTML=
+      kpi(d.visitors_today,'Visitors today')+kpi(d.pageviews_today,'Page views today')+
+      kpi(d.visitors,'Visitors (range)')+kpi(d.pageviews,'Page views (range)')+kpi(d.clicks,'Clicks (range)');
+    rows(document.getElementById('clicks'), d.top_clicks, 'label');
+    rows(document.getElementById('paths'), d.by_path, 'path');
+    rows(document.getElementById('names'), d.by_name, 'name');
+    var rec=document.getElementById('recent'); rec.innerHTML='';
+    (d.recent||[]).forEach(function(e){
+      var t=new Date(e.ts); var hh=t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      rec.insertAdjacentHTML('beforeend','<tr><td class="muted" style="white-space:nowrap">'+hh+'</td><td>'+esc(e.name)+(e.label?' · '+esc(e.label):'')+'</td></tr>');
+    });
+  }
+  function kpi(n,l){ return '<div class="kpi"><div class="n">'+(n||0)+'</div><div class="l">'+l+'</div></div>'; }
+  document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('days').addEventListener('change', load);
+  load();
+})();
+</script>
+</body>
+</html>
