@@ -447,6 +447,10 @@
           </div>
         </div>
 
+        <!-- Letter name -->
+        <input type="text" id="letterNameInput" maxlength="60" placeholder="✏️ Name this letter…" autocomplete="off"
+          style="width:100%;box-sizing:border-box;margin-bottom:.6rem;padding:.6rem .85rem;border:1px solid rgba(58,52,56,.18);border-radius:.7rem;font-size:1rem;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;background:#fff;color:#3A3438;" />
+
         <!-- Workspace toolbar -->
         <div class="ws-toolbar">
           <button type="button" class="ws-btn" id="newBtn">🆕 New</button>
@@ -1215,7 +1219,7 @@
       function uid(){ return 'blk'+(++idSeq); }
       // Custom blocks insert before the Final Card so it always closes the letter
       // Always drop new screens just before the Final card (re-find it so we never use a stale reference).
-      function placeEditor(el){ var fin=blocksWrap.querySelector('[data-type="final"]'); if (fin && el!==fin) blocksWrap.insertBefore(el, fin); else blocksWrap.appendChild(el); }
+      function placeEditor(el){ blocksWrap.appendChild(el); } // new cards always land as the last screen
 
       function emojiRowHTML(id, current){
         var keys=['hearts','sparkles','confetti','scales'];
@@ -1543,6 +1547,27 @@
           if(type==='question'){ updateQuestionOptions(id); } else { restoreMedia(id); refreshIntr(id); applyMediaSize(id); }
         });
 
+        // The letter always ends on the closing CTA — wherever the last card sits. A "Final" card
+        // that is no longer last simply behaves like a normal screen (a Continue button), so the
+        // recipient is never dead-ended and a regular message can be the true last screen.
+        var scr=Array.prototype.slice.call(pvStage.querySelectorAll('.pv-screen'));
+        scr.forEach(function(sc,idx){
+          var isLast=idx===scr.length-1;
+          var cta=sc.querySelector('#pv-cta');
+          var navBtn=sc.querySelector('[data-pv-nav]');
+          if(isLast && !cta && navBtn){
+            var b=document.createElement('button');
+            b.className='pv-btn pv-cta active:scale-95 transition-all duration-150 ease-out';
+            b.id='pv-cta'; b.textContent='✨ Send Your Own Magical Letter';
+            navBtn.parentNode.replaceChild(b,navBtn);
+          } else if(!isLast && cta && !navBtn){
+            var c=document.createElement('button');
+            c.className='pv-btn pv-btn-dark active:scale-95 transition-all duration-150 ease-out';
+            c.setAttribute('data-pv-nav','1'); c.textContent='Continue';
+            cta.parentNode.replaceChild(c,cta);
+          }
+        });
+
         var first=pvStage.querySelector('.pv-screen'); if(first) first.classList.add('is-active');
         scheduleSave();
       }
@@ -1769,6 +1794,8 @@
          ========================================================= */
       var playMode=false;
       var EMBED=false; try{ EMBED=new URLSearchParams(location.search||'').get('embed')==='1'; }catch(_e){}
+      var letterName='';
+      function letterDisplayName(){ var sv=document.getElementById('selectValue'); return (letterName&&letterName.trim()) || (sv?sv.textContent:'Letter'); }
       var currentLetterId=null;
       function genId(){ return 'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
@@ -1807,7 +1834,7 @@
           if(slot && slot[kind] && slot[kind].url && /^(https?:|data:)/i.test(slot[kind].url)) o.media={ kind:kind, url:slot[kind].url };
           items.push(o);
         });
-        return { v:1, id:currentLetterId||(currentLetterId=genId()), theme:currentTheme, music:{ on:musicOn, src:musicSrc, start:musicStart }, blocks:items };
+        return { v:1, id:currentLetterId||(currentLetterId=genId()), name:letterName, theme:currentTheme, music:{ on:musicOn, src:musicSrc, start:musicStart }, blocks:items };
       }
       function encodeState(s){ try{ return btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }catch(e){ return ''; } }
       function decodeState(str){ try{ return JSON.parse(decodeURIComponent(escape(atob(str)))); }catch(e){ return null; } }
@@ -1817,6 +1844,7 @@
         Object.keys(mediaSlots).forEach(function(k){ revokeMedia(k); });
         mediaSlots={}; kindPref={}; emojiOf={}; mediaSizeOf={}; idSeq=0; finalEl=null; blocksWrap.innerHTML='';
         currentLetterId = state.id || genId();
+        letterName = state.name || ''; var _lni=document.getElementById('letterNameInput'); if(_lni) _lni.value=letterName;
         state.blocks.forEach(function(b,idx){
           var num=idx+1, el;
           if(b.type==='question'){
@@ -1846,9 +1874,11 @@
       function doAutosave(){ if(playMode) return; if(LSset('sj:autosave', JSON.stringify(serializeState()))) flashSaved('Saved ✓'); }
       function flashSaved(t){ var h=document.getElementById('savedHint'); if(!h) return; h.textContent=t; setTimeout(function(){ if(h.textContent===t) h.textContent=''; }, 1600); }
 
+      (function(){ var lni=document.getElementById('letterNameInput'); if(lni) lni.addEventListener('input', function(){ letterName=lni.value; scheduleSave(); }); })();
       document.getElementById('newBtn').addEventListener('click', function(){
         if(!confirm('Start a new letter? Anything not saved as a draft will be cleared.')) return;
         currentLetterId=genId(); lastPublish=null;
+        letterName=''; var _lni=document.getElementById('letterNameInput'); if(_lni) _lni.value='';
         var sel=document.querySelector('.select-option.sel'); var preset=(sel&&sel.getAttribute('data-preset'))||'gratitude';
         applyPreset(preset);
         if(window.scrollTo){ try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(_){ window.scrollTo(0,0); } }
@@ -1856,7 +1886,7 @@
       });
       document.getElementById('saveDraftBtn').addEventListener('click', function(){
         var st=serializeState();
-        var name = (document.getElementById('selectValue').textContent||'Letter') + ' · ' + new Date().toLocaleDateString();
+        var name = letterDisplayName() + ' · ' + new Date().toLocaleDateString();
         var drafts=[]; try{ drafts=JSON.parse(LSget('sj:drafts')||'[]'); }catch(e){}
         drafts.unshift({ id:st.id, name:name, at:Date.now(), state:st });
         drafts=drafts.slice(0,30);
@@ -1933,7 +1963,7 @@
         if(!slug) return;
         var list=[]; try{ list=JSON.parse(LSget('sj:sent')||'[]'); }catch(e){}
         list=list.filter(function(x){ return x.slug!==slug; });
-        var name=(document.getElementById('selectValue').textContent||'Letter');
+        var name=letterDisplayName();
         list.unshift({ slug:slug, token:token, name:name, at:Date.now() });
         list=list.slice(0,50);
         LSset('sj:sent', JSON.stringify(list));
