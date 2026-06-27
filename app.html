@@ -705,7 +705,9 @@
       function sbUpload(file){
         var ext=(file.name&&file.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
         var path=(Date.now().toString(36))+'-'+Math.random().toString(36).slice(2,8)+'.'+ext;
-        return fetch(SB_URL+'/storage/v1/object/sj-media/'+path, { method:'POST', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY, 'Content-Type':file.type||'application/octet-stream', 'x-upsert':'true' }, body:file })
+        // Storage requires a real user JWT (the publishable key is rejected). Paths are unique, so no upsert.
+        var tok=(auth&&auth.session&&auth.session.access_token)||SB_KEY;
+        return fetch(SB_URL+'/storage/v1/object/sj-media/'+path, { method:'POST', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+tok, 'Content-Type':file.type||'application/octet-stream' }, body:file })
           .then(function(r){ if(!r.ok) return r.text().then(function(t){ throw new Error('upload '+r.status+' '+t); }); return SB_URL+'/storage/v1/object/public/sj-media/'+path; });
       }
 
@@ -714,6 +716,18 @@
       var auth = { session:null, user:null };
       (function loadAuth(){ try{ var raw=localStorage.getItem(AUTH_KEY); if(raw){ var s=JSON.parse(raw); if(s&&s.access_token){ auth.session=s; auth.user=s.user||null; } } }catch(e){} })();
       function isSignedIn(){ return !!(auth.session&&auth.session.access_token); }
+      function tokenExpMs(t){ try{ return (JSON.parse(atob(t.split('.')[1])).exp||0)*1000; }catch(e){ return 0; } }
+      // Refresh the access token when it's expired/near-expiry, so storage uploads (which need a valid JWT) work.
+      function ensureFreshAuth(){
+        if(!isSignedIn()) return Promise.resolve();
+        var exp=tokenExpMs(auth.session.access_token);
+        if(exp && exp > Date.now()+60000) return Promise.resolve();
+        var rt=auth.session.refresh_token; if(!rt) return Promise.resolve();
+        return fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{ method:'POST', headers:{ 'apikey':SB_KEY, 'Content-Type':'application/json' }, body:JSON.stringify({ refresh_token:rt }) })
+          .then(function(r){ return r.ok? r.json() : null; })
+          .then(function(d){ if(d&&d.access_token){ saveAuth(Object.assign({}, auth.session, d)); } })
+          .catch(function(){});
+      }
       function saveAuth(s){ auth.session=s; auth.user=(s&&s.user)||null; try{ localStorage.setItem(AUTH_KEY, JSON.stringify(s)); }catch(e){} updateAccountUI(); }
       function clearAuth(){ auth.session=null; auth.user=null; try{ localStorage.removeItem(AUTH_KEY); }catch(e){} updateAccountUI(); }
       function authReq(path, body){
@@ -2196,7 +2210,7 @@
         linkEl.textContent = pendingUploads>0 ? 'Finishing media upload…' : 'Generating your link…';
         waitForUploads(function(){
         linkEl.textContent='Preparing your photos & videos…';
-        ensureHostedMedia().then(function(){
+        ensureFreshAuth().then(ensureHostedMedia).then(function(){
         var st=serializeState();
         if(auth.user&&auth.user.id) st.owner=auth.user.id;
         if(SB_ON){
@@ -2210,10 +2224,10 @@
             linkEl.textContent=link;
           }).catch(function(err){
             if(err&&err.code==='rate_limited'){ linkEl.textContent='You’ve created a lot of letters in a short time — please wait a few minutes and try again.'; }
-            else { linkEl.textContent=offlineLink(st); }
+            else { linkEl.textContent='Hmm — we couldn’t create your link just now. Please check your connection and tap Generate again.'; }
           });
         } else {
-          linkEl.textContent=offlineLink(st);
+          linkEl.textContent='Links need an internet connection. Please reconnect and tap Generate again.';
         }
         }); // end ensureHostedMedia().then
         }); // end waitForUploads
