@@ -2220,17 +2220,30 @@
         if(!isSignedIn()){ openAuth(function(){ loadPremium().then(function(){ if(isPremium()){ if(after) after(); } else { openPaywall(after,{features:feats}); } }); }); return; }
         openPaywall(after, { features:feats });
       }
-      // When the owner's account has hit its response cap, nudge THEM (not the invitee) to upgrade — on visit.
+      // In-app "you got replies" notification on visit — no email setup needed.
+      function showReplyToast(n){
+        var t=document.createElement('div');
+        t.textContent='💌 '+n+' new repl'+(n===1?'y':'ies')+' to your letters — tap to view';
+        t.style.cssText='position:fixed;left:50%;top:18px;transform:translateX(-50%);background:#3A3438;color:#fff;padding:.7rem 1.15rem;border-radius:999px;font-family:Inter,system-ui,sans-serif;font-size:.9rem;font-weight:600;z-index:99999;box-shadow:0 12px 32px -10px rgba(0,0,0,.55);cursor:pointer;max-width:92vw;text-align:center;';
+        t.onclick=function(){ t.remove(); var b=document.getElementById('responsesBtn'); if(b) b.click(); };
+        document.body.appendChild(t);
+        setTimeout(function(){ t.style.transition='opacity .5s'; t.style.opacity='0'; setTimeout(function(){ t.remove(); }, 600); }, 7000);
+      }
+      // On visit: tell the OWNER about new replies, and nudge to upgrade when their account is at the cap.
       function checkResponseLimit(){
         if(!isSignedIn() || !SB_ON) return;
         ensureFreshAuth().then(function(){ return sbRpcAuthed('sj_account_usage', {}); }).then(function(u){
           if(!u || typeof u.limit!=='number') return;
-          if(u.limit < 2000000 && (u.responses||0) >= u.limit){
+          var n=u.responses||0;
+          var seen=parseInt(LSget('sj:seenReplies')||'0',10)||0;
+          if(n>seen) showReplyToast(n-seen);
+          LSset('sj:seenReplies', String(n));
+          if(u.limit < 2000000 && n >= u.limit){
             var tier=u.tier||'free';
             openPaywall(null, {
               title:'You’ve reached your reply limit',
-              subtitle:'Your letters have received '+u.responses+' of '+u.limit+' replies on the '+tier+' plan. Upgrade to keep receiving and unlocking answers:',
-              features:['Unlock all your incoming replies', (tier==='free'?'10 replies on Premium · unlimited on Big Event':'Unlimited replies on Big Event'), 'Every reply emailed to you the moment it lands']
+              subtitle:'Your letters have received '+n+' of '+u.limit+' replies on the '+tier+' plan. Upgrade to keep receiving and unlocking answers:',
+              features:['Unlock all your incoming replies', (tier==='free'?'10 replies on Premium · unlimited on Big Event':'Unlimited replies on Big Event'), 'See every reply in your Responses tab']
             });
           }
         }).catch(function(){});
