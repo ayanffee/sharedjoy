@@ -1259,7 +1259,7 @@
         var title = opts.title || (isFinal?'The Final Card':'Custom Story Block');
         var msgLabel = isFinal ? 'Final Message' : 'Message';
         el.innerHTML =
-          '<div class="eb-head">'+badge+'<span class="eb-title">'+title+'</span>'+ctrlBtns(id,{ permanent:permanent, pinned:(isFinal||!!opts.envelope) })+'</div>'+
+          '<div class="eb-head">'+badge+'<span class="eb-title">'+title+'</span>'+ctrlBtns(id,{ permanent:(permanent||isFinal), pinned:!!opts.envelope })+'</div>'+
           '<label class="field-label">'+msgLabel+'</label>'+
           '<div class="field-wrap mb-3"><textarea class="field has-counter" data-role="text" rows="3" maxlength="'+MAXLEN+'" placeholder="Write your words…">'+(opts.text||'').replace(/</g,'&lt;')+'</textarea></div>'+
           (opts.envelope ? '' : ('<label class="field-label">Media</label>'+ mediaHTML(id) + intrEditorHTML(id)))+
@@ -1333,11 +1333,12 @@
         wireInteraction(el, id);
       }
 
-      // Reorder ANY screen up/down. The envelope stays first and the final card stays last (can't cross them).
+      // Reorder ANY screen up/down. Only the envelope stays pinned first — every other card
+      // (including the Final Card) can move freely, so a message can be the very last screen.
       function moveBlock(el, dir){
+        if(el.getAttribute('data-envelope')==='1') return;      // envelope is fixed first
         var sib = dir==='up' ? el.previousElementSibling : el.nextElementSibling;
         if(!sib || !sib.classList.contains('eb')) return;
-        if(sib.getAttribute('data-type')==='final') return;     // can't drop below the final card
         if(sib.getAttribute('data-envelope')==='1') return;     // can't rise above the envelope
         if(dir==='up') blocksWrap.insertBefore(el, sib); else blocksWrap.insertBefore(sib, el);
         buildPreview();
