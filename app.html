@@ -662,8 +662,8 @@
   <div class="modal-overlay" id="paywallModal">
     <div class="modal-card">
       <div class="modal-emoji" style="text-align:center;">&#10024;</div>
-      <h3 class="font-serif text-3xl text-charcoal/90 mb-1 text-center">You're using premium features</h3>
-      <p class="text-charcoal/55 text-sm text-center mb-3">Your letter is ready — unlock these to generate and share it:</p>
+      <h3 class="font-serif text-3xl text-charcoal/90 mb-1 text-center" id="paywallTitle">You're using premium features</h3>
+      <p class="text-charcoal/55 text-sm text-center mb-3" id="paywallSub">Your letter is ready — unlock these to generate and share it:</p>
       <ul class="pw-feats" id="paywallFeatures"></ul>
       <div style="text-align:center;margin-top:1rem;"><span class="pw-price" id="pwPrice">&#8358;5,000<small> / week</small></span></div>
       <div class="pw-note" id="pwPriceNote" style="margin-top:.35rem;"></div>
@@ -701,6 +701,8 @@
           .catch(function(err){ if(err&&err.code==='rate_limited') throw err; return sbRpc('sj_create_letter', { p_data:data }); });
       }
       function sbGetLetter(slug){ return sbRpc('sj_get_letter', { p_slug:slug }); }
+      // RPC called AS the signed-in user (so auth.uid() resolves). Needed for per-account usage.
+      function sbRpcAuthed(fn,args){ var tok=(auth&&auth.session&&auth.session.access_token)||SB_KEY; return fetch(SB_URL+'/rest/v1/rpc/'+fn, { method:'POST', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+tok, 'Content-Type':'application/json' }, body:JSON.stringify(args||{}) }).then(function(r){ return r.ok?(r.status===204?null:r.json()):null; }); }
       function sbSubmitRSVP(slug,q,c){ return sbRpc('sj_submit_rsvp', { p_slug:slug, p_question:q, p_choice:c }); }
       // Email each answer to the letter's creator the instant it's given — even partial/incomplete ones.
       function sbNotifyResponse(slug,q,c){ try{ return fetch(SB_URL+'/functions/v1/notify-response', { method:'POST', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY, 'Content-Type':'application/json' }, body:JSON.stringify({ slug:slug, question:q, choice:c }) }).catch(function(){}); }catch(e){} }
@@ -2205,6 +2207,9 @@
         opts=opts||{}; pendingAfterPay=after||null;
         var feats=opts.features||usesPremiumFeatures();
         document.getElementById('paywallFeatures').innerHTML = (feats.length?feats:['Premium feature']).map(function(f){ return '<li>'+f+'</li>'; }).join('');
+        var t=document.getElementById('paywallTitle'), s=document.getElementById('paywallSub');
+        if(t) t.textContent = opts.title || 'You\'re using premium features';
+        if(s) s.textContent = opts.subtitle || 'Your letter is ready — unlock these to generate and share it:';
         paywallModal.classList.add('show');
       }
       function closePaywall(){ paywallModal.classList.remove('show'); pendingAfterPay=null; }
@@ -2214,6 +2219,21 @@
         if(isPremium()){ if(after) after(); return; }
         if(!isSignedIn()){ openAuth(function(){ loadPremium().then(function(){ if(isPremium()){ if(after) after(); } else { openPaywall(after,{features:feats}); } }); }); return; }
         openPaywall(after, { features:feats });
+      }
+      // When the owner's account has hit its response cap, nudge THEM (not the invitee) to upgrade — on visit.
+      function checkResponseLimit(){
+        if(!isSignedIn() || !SB_ON) return;
+        ensureFreshAuth().then(function(){ return sbRpcAuthed('sj_account_usage', {}); }).then(function(u){
+          if(!u || typeof u.limit!=='number') return;
+          if(u.limit < 2000000 && (u.responses||0) >= u.limit){
+            var tier=u.tier||'free';
+            openPaywall(null, {
+              title:'You’ve reached your reply limit',
+              subtitle:'Your letters have received '+u.responses+' of '+u.limit+' replies on the '+tier+' plan. Upgrade to keep receiving and unlocking answers:',
+              features:['Unlock all your incoming replies', (tier==='free'?'10 replies on Premium · unlimited on Big Event':'Unlimited replies on Big Event'), 'Every reply emailed to you the moment it lands']
+            });
+          }
+        }).catch(function(){});
       }
       document.getElementById('paywallClose').addEventListener('click', closePaywall);
       paywallModal.addEventListener('click', function(e){ if(e.target===paywallModal) closePaywall(); });
@@ -2329,6 +2349,7 @@
         if(saved){ try{ var s=JSON.parse(saved); if(s&&s.blocks&&s.blocks.length){ buildFromState(s); flashSaved('Restored your last draft'); ok=true; } }catch(e){} }
         if(!ok){ currentLetterId=genId(); applyPreset('gratitude'); }
         if(musicOn) setMusic(true);
+        setTimeout(checkResponseLimit, 1600); // owner-only upsell when their account is at the reply cap
       })();
     })();
   </script>
