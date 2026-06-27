@@ -443,6 +443,8 @@
                 <svg class="opt-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
               <div class="select-option" role="option" data-preset="apology"><span>Heartfelt Apology</span>
                 <svg class="opt-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+              <div class="select-option" role="option" data-preset="longdistance"><span>Long-Distance Love</span>
+                <svg class="opt-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
             </div>
           </div>
         </div>
@@ -700,6 +702,8 @@
       }
       function sbGetLetter(slug){ return sbRpc('sj_get_letter', { p_slug:slug }); }
       function sbSubmitRSVP(slug,q,c){ return sbRpc('sj_submit_rsvp', { p_slug:slug, p_question:q, p_choice:c }); }
+      // Email each answer to the letter's creator the instant it's given — even partial/incomplete ones.
+      function sbNotifyResponse(slug,q,c){ try{ return fetch(SB_URL+'/functions/v1/notify-response', { method:'POST', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY, 'Content-Type':'application/json' }, body:JSON.stringify({ slug:slug, question:q, choice:c }) }).catch(function(){}); }catch(e){} }
       function sbGetResponses(slug,token){ return sbRpc('sj_get_responses', { p_slug:slug, p_token:token }); }
       function sbGetStats(slug,token){ return sbRpc('sj_get_stats', { p_slug:slug, p_token:token }); }
       function sbUpload(file){
@@ -1599,6 +1603,14 @@
         if(current){ current.classList.add('is-leaving'); setTimeout(function(){ current.classList.remove('is-active','is-leaving','is-entering'); enter(); },380); } else enter();
       }
       function pvAdvance(){ var arr=orderedScreens(); var cur=pvStage.querySelector('.pv-screen.is-active'); var i=arr.indexOf(cur); if(i>-1&&i<arr.length-1) pvShowEl(arr[i+1]); }
+      // After the recipient picks an answer, gently glide to the next screen — no extra "Continue" tap.
+      function autoGlide(screen){
+        if(!screen) return;
+        var arr=orderedScreens(); var i=arr.indexOf(screen);
+        if(i<0 || i>=arr.length-1) return; // last screen: they tap the closing button themselves
+        var nav=screen.querySelector('[data-pv-nav]'); if(nav) nav.style.display='none';
+        setTimeout(function(){ if(screen.classList.contains('is-active')) pvAdvance(); }, 700);
+      }
       // A screen's question (if any) must be answered before the recipient can continue.
       function interactionAnswered(screen){ if(!screen) return true;
         var dd=screen.querySelector('.pv-dd'); if(dd && !dd.querySelector('.pv-dd-opt.selected')) return false;
@@ -1645,18 +1657,24 @@
           opt.classList.add('selected');
           dd.querySelector('[data-dd-label]').textContent=opt.getAttribute('data-val');
           dd.classList.remove('open');
-          if(playMode){ var qScreen=dd.closest('.pv-screen'); var qTextEl=qScreen.querySelector('.pv-iq')||qScreen.querySelector('.pv-headline'); recordRSVP((qTextEl?qTextEl.textContent:'Question'), opt.getAttribute('data-val')); }
+          var qScreen=dd.closest('.pv-screen');
+          if(playMode){ var qTextEl=qScreen.querySelector('.pv-iq')||qScreen.querySelector('.pv-headline'); recordRSVP((qTextEl?qTextEl.textContent:'Question'), opt.getAttribute('data-val')); }
+          autoGlide(qScreen);
           return; }
         // vote (poll buttons)
         var vt=e.target.closest('.pv-vote-opt');
         if(vt){ var vwrap=vt.parentNode; vwrap.querySelectorAll('.pv-vote-opt').forEach(function(o){ o.classList.remove('selected'); }); vt.classList.add('selected');
-          if(playMode){ var vScreen=vt.closest('.pv-screen'); var vq=vScreen.querySelector('.pv-iq'); recordRSVP((vq?vq.textContent:'Vote'), vt.getAttribute('data-val')); }
+          var vScreen=vt.closest('.pv-screen');
+          if(playMode){ var vq=vScreen.querySelector('.pv-iq'); recordRSVP((vq?vq.textContent:'Vote'), vt.getAttribute('data-val')); }
+          autoGlide(vScreen);
           return; }
         // short answer (send)
         var sh=e.target.closest('[data-short]');
         if(sh){ var sid=sh.getAttribute('data-short'); var inp=document.getElementById('pv-short-'+sid); var val=inp?inp.value.trim():''; if(!val) return;
           var wrap=document.getElementById('pv-short-wrap-'+sid); if(wrap) wrap.classList.add('sent'); sh.textContent='Sent ✓'; if(inp) inp.setAttribute('readonly','readonly');
-          if(playMode){ var sScreen=sh.closest('.pv-screen'); var sq=sScreen.querySelector('.pv-iq'); recordRSVP((sq?sq.textContent:'Answer'), val); }
+          var sScreen=sh.closest('.pv-screen');
+          if(playMode){ var sq=sScreen.querySelector('.pv-iq'); recordRSVP((sq?sq.textContent:'Answer'), val); }
+          autoGlide(sScreen);
           return; }
         // nav (continue)
         var nav=e.target.closest('[data-pv-nav]');
@@ -1743,6 +1761,14 @@
           s2:{ title:'The Honesty',       emoji:'hearts', text:'I got it wrong, and I\'ve thought about it a lot. You deserved better from me.' },
           s3:{ title:'The Accountability', emoji:'sparkles', type:'story', text:'I\'m not making excuses — I just want you to know I see it, and I\'m sorry.' },
           s4:{ title:'The Final Card',    emoji:'hearts', text:'Whenever you\'re ready, I\'m here. Thank you for hearing me out. 🤍' }
+        },
+        longdistance: {
+          s1:{ title:'The Envelope Hook', emoji:'hearts', envelope:true, text:'Across all these miles... this one\'s for you. Open it. 💌' },
+          s2:{ title:'The Miles Between', emoji:'hearts', text:'Different time zones, same heart. The distance just means I get to miss you — and fall for you all over again — every single day.' },
+          s3:{ title:'The Countdown', emoji:'sparkles', type:'question',
+               text:'When we\'re finally in the same place again, what should we do first?',
+               options:[ 'The longest hug — no letting go 🤗', 'Our movie, tangled on the couch 🍿', 'A proper date night, all dressed up ✨', 'Honestly? Just be together, anywhere 💕' ] },
+          s4:{ title:'The Final Card',    emoji:'hearts', text:'No matter the distance, you\'re my favourite hello and my hardest goodbye. Counting down to you. ❤️' }
         }
       };
       function applyPreset(name){
@@ -1933,7 +1959,7 @@
       /* ===== RSVP CAPTURE + RESPONSES ===== */
       function recordRSVP(question, choice){
         // server (cross-device) when this is a published letter being played
-        if(SB_ON && playSlug){ sbSubmitRSVP(playSlug, question, choice).catch(function(){}); }
+        if(SB_ON && playSlug){ sbSubmitRSVP(playSlug, question, choice).catch(function(){}); sbNotifyResponse(playSlug, question, choice); }
         // local backup (also powers the demo loop on one device)
         var k='sj:rsvp:'+(playSlug||currentLetterId||'anon');
         var arr=[]; try{ arr=JSON.parse(LSget(k)||'[]'); }catch(e){}
