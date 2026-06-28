@@ -416,7 +416,7 @@
       <h1 class="font-serif text-3xl sm:text-4xl text-charcoal/90 leading-tight">Build your letter</h1>
       <p class="text-charcoal/55 mt-1 text-[0.9rem]">Pick an occasion, edit each message, add photos — then hit Generate for a shareable link.</p>
       <ol style="display:flex;flex-wrap:wrap;gap:.5rem;margin:.85rem 0 0;padding:0;list-style:none;font-size:.8rem;color:#3A3438;">
-        <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">1</b>&nbsp; Pick an occasion</li>
+        <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">1</b>&nbsp; Pick a preset</li>
         <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">2</b>&nbsp; Edit each message</li>
         <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">3</b>&nbsp; Add photos</li>
         <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">4</b>&nbsp; Generate &amp; share</li>
@@ -429,14 +429,14 @@
       <section class="order-2 lg:order-1">
 
         <div class="mb-5">
-          <label class="field-label">Occasion <span style="font-weight:400;color:#C98A8E;text-transform:none;letter-spacing:0;">— first time? pick a preset for ready-made words ✨</span></label>
+          <label class="field-label">Presets <span style="font-weight:400;color:#C98A8E;text-transform:none;letter-spacing:0;">— optional, ready-made words to start from ✨</span></label>
           <div class="select-wrap" id="occasionSelect">
             <button type="button" class="select-trigger" id="selectTrigger" aria-haspopup="listbox" aria-expanded="false">
-              <span id="selectValue">Start from scratch ✍️</span>
+              <span id="selectValue">— None —</span>
               <svg class="select-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </button>
             <div class="select-menu" id="selectMenu" role="listbox">
-              <div class="select-option sel" role="option" data-preset="blank" aria-selected="true"><span>Start from scratch ✍️</span>
+              <div class="select-option sel" role="option" data-preset="blank" aria-selected="true"><span>— None —</span>
                 <svg class="opt-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
               <div class="select-option" role="option" data-preset="gratitude"><span>Deep Gratitude Note</span>
                 <svg class="opt-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
@@ -457,12 +457,12 @@
         </div>
 
         <!-- Letter name -->
-        <input type="text" id="letterNameInput" maxlength="60" placeholder="✏️ Name this letter…" autocomplete="off"
+        <input type="text" id="letterNameInput" maxlength="60" placeholder="Name this letter…" autocomplete="off"
           style="width:100%;box-sizing:border-box;margin-bottom:.6rem;padding:.6rem .85rem;border:1px solid rgba(58,52,56,.18);border-radius:.7rem;font-size:1rem;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;background:#fff;color:#3A3438;" />
 
         <!-- Workspace toolbar -->
         <div class="ws-toolbar">
-          <button type="button" class="ws-btn" id="newBtn">🆕 New</button>
+          <button type="button" class="ws-btn" id="newBtn">New letter</button>
           <button type="button" class="ws-btn" id="saveDraftBtn">💾 Save Draft</button>
           <div class="ws-menu-wrap">
             <button type="button" class="ws-btn" id="lettersMenuBtn">📁 My Letters ▾</button>
@@ -1246,7 +1246,9 @@
       function uid(){ return 'blk'+(++idSeq); }
       // Custom blocks insert before the Final Card so it always closes the letter
       // Always drop new screens just before the Final card (re-find it so we never use a stale reference).
-      function placeEditor(el){ blocksWrap.appendChild(el); } // new cards always land as the last screen
+      function placeEditor(el){ blocksWrap.appendChild(el); renumberScreens(); } // new cards always land as the last screen
+      // Every screen is just "Screen N" by its current position — no descriptive titles.
+      function renumberScreens(){ var i=0; Array.prototype.forEach.call(blocksWrap.querySelectorAll('.eb'), function(el){ i++; var t=el.querySelector('.eb-title'); if(t) t.textContent='Screen '+i; }); }
 
       function emojiRowHTML(id, current){
         var keys=['hearts','sparkles','confetti','scales'];
@@ -1286,7 +1288,7 @@
         var el=document.createElement('div'); el.className='eb'+(opts.defer?'':' enter');
         el.setAttribute('data-id',id); el.setAttribute('data-type', isFinal?'final':'story');
         if (opts.envelope) el.setAttribute('data-envelope','1');
-        var badge = isFinal ? '<span class="eb-badge badge-final">★ Final</span>' : (opts.envelope ? '<span class="eb-badge badge-story">✉️ Envelope</span>' : '<span class="eb-badge badge-story">📖 Story</span>');
+        var badge = isFinal ? '<span class="eb-badge badge-final">★ Final</span>' : '';
         var title = opts.title || (isFinal?'The Final Card':'Custom Story Block');
         var msgLabel = isFinal ? 'Final Message' : 'Message';
         el.innerHTML =
@@ -1372,13 +1374,13 @@
         if(!sib || !sib.classList.contains('eb')) return;
         if(sib.getAttribute('data-envelope')==='1') return;     // can't rise above the envelope
         if(dir==='up') blocksWrap.insertBefore(el, sib); else blocksWrap.insertBefore(sib, el);
-        buildPreview();
+        renumberScreens(); buildPreview();
       }
 
       function removeBlock(id, el){
         revokeMedia(id); delete emojiOf[id]; delete kindPref[id]; delete mediaSizeOf[id];
         el.parentNode && el.parentNode.removeChild(el);
-        buildPreview();
+        renumberScreens(); buildPreview();
       }
 
       function readOptions(el){
