@@ -295,9 +295,6 @@
     .play-credit { position:absolute; bottom:18px; left:0; right:0; text-align:center; color:rgba(255,255,255,0.45); font-size:.72rem; letter-spacing:.04em; }
     #playMute { position:absolute; top:18px; right:20px; z-index:5; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.25); color:#fff; border-radius:999px; width:42px; height:42px; font-size:1.1rem; cursor:pointer; }
     #playMute:hover { background:rgba(255,255,255,0.24); }
-    #playMake { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); z-index:6; background:#fff; color:#3A3438; border:0; border-radius:999px; padding:.7rem 1.25rem; font-family:Inter,system-ui,sans-serif; font-size:.92rem; font-weight:600; cursor:pointer; box-shadow:0 14px 34px -12px rgba(0,0,0,0.45); display:none; }
-    #playMake:hover { transform:translateX(-50%) translateY(-2px); }
-    body.play-mode #playMake.on { display:block; }
     .music-status { font-size:.7rem; margin-top:.5rem; color:rgba(58,52,56,0.5); }
     .music-status.ok { color:#5C6B4F; }
     .music-status.bad { color:#C9737E; }
@@ -527,7 +524,6 @@
   <!-- PLAY MODE (recipient) stage -->
   <div class="play-stage" id="playStage">
     <button type="button" id="playMute" title="Mute / unmute music" style="display:none;">🔊</button>
-    <button type="button" id="playMake" title="Create your own letter">💌 Make your own — free</button>
     <div class="phone" id="playPhone">
       <div class="phone-notch"></div>
       <div class="phone-screen" id="playPhoneScreen">
@@ -2328,8 +2324,6 @@
         buildFromState(state); // restores musicOn / musicSrc / musicStart
         playStageHost.appendChild(pvStage); // relocate the live, fully-wired stage into the fullscreen player
         pvReset();
-        // Always-visible "make your own" pill from the moment they open it (skip the embedded landing demo).
-        if(!EMBED){ var mk=document.getElementById('playMake'); if(mk) mk.classList.add('on'); }
         // start the soundtrack on the first user gesture (the envelope tap) — required for browser autoplay
         if(musicOn){
           var mute=document.getElementById('playMute');
@@ -2340,7 +2334,6 @@
       function showPlayError(msg){ playMode=true; document.body.classList.add('play-mode'); leaveBoot(); playStageHost.innerHTML='<div style="color:#fff;text-align:center;padding:2rem;font-family:Cormorant Garamond,serif;font-size:1.1rem;">'+msg+'</div>'; }
       function goCreate(e){ if(e&&e.preventDefault) e.preventDefault(); if(typeof sjTrack==='function') sjTrack('click',{label:'make_your_own'}); if(EMBED){ try{ window.open(location.pathname,'_blank'); }catch(_o){} return; } window.location.href=location.pathname; }
       document.getElementById('playCreate').addEventListener('click', goCreate);
-      (function(){ var mk=document.getElementById('playMake'); if(mk) mk.addEventListener('click', goCreate); })();
 
       (function init(){
         var qs=new URLSearchParams(location.search||'');
