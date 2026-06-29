@@ -785,8 +785,13 @@
       var PLAN_LOCAL='PLN_8akcmcsmbugnjun';   // ₦5,000 / week — home + developing-Africa markets
       var PLAN_GLOBAL='PLN_z3r2ou0kjg4xkgo';  // ₦21,000 / week ≈ $15 — outside Africa + better-off African markets
       // ===== Lemon Squeezy (USD, USA-ready). Paste the 4 buy-links to go live; until then checkout falls back to Paystack. =====
-      var LEMON = { premium_m:'', premium_y:'', event_m:'', event_y:'' };
-      function lemonURL(tier,cycle){ return (tier==='team') ? (cycle==='annual'?LEMON.event_y:LEMON.event_m) : (cycle==='annual'?LEMON.premium_y:LEMON.premium_m); }
+      var LEMON = {
+        premium_m:'https://sharedjoy.lemonsqueezy.com/checkout/buy/61bab606-2e83-4d42-a786-53da0c5101f5',
+        premium_y:'',
+        event_m:'https://sharedjoy.lemonsqueezy.com/checkout/buy/6068780c-81dd-453f-8888-75a750966479',
+        event_y:''
+      };
+      function lemonURL(tier,cycle){ var t = (tier==='team') ? { m:LEMON.event_m, y:LEMON.event_y } : { m:LEMON.premium_m, y:LEMON.premium_y }; return (cycle==='annual' && t.y) ? t.y : t.m; }
       function lemonReady(){ return !!(LEMON.premium_m||LEMON.premium_y||LEMON.event_m||LEMON.event_y); }
       function openLemon(tier,cycle){ var base=lemonURL(tier,cycle)||LEMON.premium_m; if(!base) return false; try{ var u=new URL(base); if(auth&&auth.user){ u.searchParams.set('checkout[email]', auth.user.email||''); u.searchParams.set('checkout[custom][user_id]', auth.user.id); } window.location.href=u.toString(); }catch(e){ window.location.href=base; } return true; }
       // Africa ISO-2 codes
