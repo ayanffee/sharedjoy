@@ -2304,8 +2304,9 @@
       paywallModal.addEventListener('click', function(e){ if(e.target===paywallModal) closePaywall(); });
       document.getElementById('paywallPay').addEventListener('click', function(){
         var btn=this; var orig=btn.textContent; btn.disabled=true; btn.textContent='Opening secure checkout…';
-        // USD checkout via Lemon Squeezy when configured (USA-ready); otherwise Paystack.
-        if(lemonReady()){ openLemon('premium','monthly'); return; }
+        // Region-aware: Africa pays via Paystack (₦, live now); everyone else via Lemon Squeezy (USD).
+        var isAfrica = !priceTier || priceTier.key==='local';
+        if(!isAfrica && lemonReady()){ openLemon('premium','monthly'); return; }
         startPaystack(function(){ // paid
           btn.disabled=false; btn.textContent=orig; var after=pendingAfterPay; pendingAfterPay=null; paywallModal.classList.remove('show'); if(typeof after==='function') after();
         }, function(msg){ // failed / library issue
