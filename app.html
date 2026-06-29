@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Interactive Story Form · Creator</title>
 
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init','1312815344164313');fbq('track','PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1312815344164313&ev=PageView&noscript=1"/></noscript>
+  <!-- End Meta Pixel Code -->
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -2214,8 +2222,9 @@
         var errEl=document.getElementById('authError');
         var v=authValidate(email,pw); if(v){ errEl.textContent=v; return; }
         var btn=document.getElementById('authSubmit'); var orig=btn.textContent; btn.disabled=true; btn.textContent='Working…'; errEl.textContent='';
+        var wasSignup = authMode==='signup';
         var p = authMode==='signup' ? authSignUp(email,pw) : authSignIn(email,pw);
-        p.then(function(session){ saveAuth(session); var after=pendingAfterAuth; authModal.classList.remove('show'); pendingAfterAuth=null; btn.disabled=false; btn.textContent=orig; document.getElementById('authPass').value=''; loadPremium().then(function(){ if(typeof after==='function') after(); }); })
+        p.then(function(session){ saveAuth(session); if(wasSignup){ try{ if(window.fbq) fbq('track','CompleteRegistration'); }catch(_e){} } var after=pendingAfterAuth; authModal.classList.remove('show'); pendingAfterAuth=null; btn.disabled=false; btn.textContent=orig; document.getElementById('authPass').value=''; loadPremium().then(function(){ if(typeof after==='function') after(); }); })
          .catch(function(err){ btn.disabled=false; btn.textContent=orig; errEl.textContent=(err&&err.message)||'Something went wrong. Please try again.'; });
       }
       document.getElementById('authToggleBtn').addEventListener('click', function(){ setAuthMode(authMode==='signup'?'signin':'signup'); document.getElementById('authError').textContent=''; });
@@ -2312,6 +2321,7 @@
             lastPublish={ slug:slug, token:token };
             try{ localStorage.setItem('sj:pub:'+st.id, JSON.stringify(lastPublish)); }catch(e){}
             registerSent(slug, token, st);
+            try{ if(window.fbq){ fbq('track','Lead'); fbq('trackCustom','LetterGenerated'); } }catch(_e){}
             var link=location.href.split(/[#?]/)[0]+'?l='+slug;
             linkEl.textContent=link;
           }).catch(function(err){
