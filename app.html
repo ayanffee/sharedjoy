@@ -202,6 +202,13 @@
     .flow-exit { position:absolute; top:20px; right:22px; z-index:5; background:rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.25); border-radius:999px; padding:.6rem 1.1rem; font-size:.85rem; font-weight:600; cursor:pointer; transition:background-color .2s, transform .15s; }
     .flow-exit:hover { background:rgba(255,255,255,0.22); transform:translateY(-1px); }
     .flow-label { position:absolute; top:26px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,0.7); font-size:.72rem; letter-spacing:.22em; text-transform:uppercase; font-weight:600; }
+    /* On phones the exit button must not sit on top of the phone — drop the phone below it. */
+    @media (max-width:640px){
+      .flow-modal { align-items:flex-start; }
+      .flow-modal .phone { margin-top:64px; }
+      .flow-exit { top:12px; right:12px; padding:.45rem .85rem; font-size:.78rem; }
+      .flow-label { display:none; }
+    }
     #flowStageHost, #playStageHost { position:absolute; inset:0; }
 
     .burst-layer { position:fixed; inset:0; pointer-events:none; z-index:130; overflow:hidden; }
