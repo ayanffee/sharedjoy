@@ -784,6 +784,11 @@
       var PAYSTACK_PK='pk_live_9c9fd70f398c69636c9bde1c27c053df958842a4';
       var PLAN_LOCAL='PLN_8akcmcsmbugnjun';   // ₦5,000 / week — home + developing-Africa markets
       var PLAN_GLOBAL='PLN_z3r2ou0kjg4xkgo';  // ₦21,000 / week ≈ $15 — outside Africa + better-off African markets
+      // ===== Lemon Squeezy (USD, USA-ready). Paste the 4 buy-links to go live; until then checkout falls back to Paystack. =====
+      var LEMON = { premium_m:'', premium_y:'', event_m:'', event_y:'' };
+      function lemonURL(tier,cycle){ return (tier==='team') ? (cycle==='annual'?LEMON.event_y:LEMON.event_m) : (cycle==='annual'?LEMON.premium_y:LEMON.premium_m); }
+      function lemonReady(){ return !!(LEMON.premium_m||LEMON.premium_y||LEMON.event_m||LEMON.event_y); }
+      function openLemon(tier,cycle){ var base=lemonURL(tier,cycle)||LEMON.premium_m; if(!base) return false; try{ var u=new URL(base); if(auth&&auth.user){ u.searchParams.set('checkout[email]', auth.user.email||''); u.searchParams.set('checkout[custom][user_id]', auth.user.id); } window.location.href=u.toString(); }catch(e){ window.location.href=base; } return true; }
       // Africa ISO-2 codes
       var AFRICA = ['DZ','AO','BJ','BW','BF','BI','CV','CM','CF','TD','KM','CG','CD','CI','DJ','EG','GQ','ER','SZ','ET','GA','GM','GH','GN','GW','KE','LS','LR','LY','MG','MW','ML','MR','MU','MA','MZ','NA','NE','NG','RW','ST','SN','SC','SL','SO','ZA','SS','SD','TZ','TG','TN','UG','ZM','ZW','EH','YT','RE','SH'];
       // Better-off African markets that pay the $15 (global) tier alongside the rest of the world
@@ -2294,6 +2299,8 @@
       paywallModal.addEventListener('click', function(e){ if(e.target===paywallModal) closePaywall(); });
       document.getElementById('paywallPay').addEventListener('click', function(){
         var btn=this; var orig=btn.textContent; btn.disabled=true; btn.textContent='Opening secure checkout…';
+        // USD checkout via Lemon Squeezy when configured (USA-ready); otherwise Paystack.
+        if(lemonReady()){ openLemon('premium','monthly'); return; }
         startPaystack(function(){ // paid
           btn.disabled=false; btn.textContent=orig; var after=pendingAfterPay; pendingAfterPay=null; paywallModal.classList.remove('show'); if(typeof after==='function') after();
         }, function(msg){ // failed / library issue
