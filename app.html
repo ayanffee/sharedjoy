@@ -345,7 +345,10 @@
     .ws-menu-item { position:relative; display:block; width:100%; text-align:left; background:none; border:none; cursor:pointer; padding:.55rem .7rem; border-radius:.55rem; font-size:.85rem; color:#3A3438; }
     .ws-menu-item:hover { background:#FBF1EE; }
     /* sticky action bar (Preview + Generate always reachable) */
-    #actionBar { position:fixed; left:0; right:0; bottom:0; z-index:55; display:flex; gap:.6rem; justify-content:center; align-items:center; padding:.6rem 1rem calc(.6rem + env(safe-area-inset-bottom,0px)); background:linear-gradient(to top, rgba(251,246,240,0.98), rgba(251,246,240,0.86)); backdrop-filter:blur(8px); border-top:1px solid rgba(58,52,56,0.08); }
+    #actionBar { position:fixed; left:0; right:0; bottom:0; z-index:55; display:flex; flex-direction:column; gap:.4rem; justify-content:center; align-items:center; padding:.5rem 1rem calc(.6rem + env(safe-area-inset-bottom,0px)); background:linear-gradient(to top, rgba(251,246,240,0.98), rgba(251,246,240,0.86)); backdrop-filter:blur(8px); border-top:1px solid rgba(58,52,56,0.08); }
+    #actionBar .ab-row { display:flex; gap:.6rem; justify-content:center; align-items:center; }
+    #freeViewNote { font-size:.74rem; color:rgba(58,52,56,0.6); text-align:center; }
+    #freeViewNote b { color:#C98A8E; }
     body.booting #actionBar, body.play-loading #actionBar, body.play-mode #actionBar { display:none; }
     .ab-btn { border:none; cursor:pointer; border-radius:.85rem; font-weight:600; font-size:.92rem; padding:.8rem 1.1rem; transition:transform .12s, filter .15s; }
     .ab-btn:active { transform:scale(.97); }
@@ -405,8 +408,11 @@
 <body class="booting sj-free">
   <div id="accountDock"><button type="button" class="ws-btn" id="accountBtn">👤 Sign in</button></div>
   <div id="actionBar">
-    <button type="button" class="ab-btn ab-preview" id="abPreview">👁️ Preview</button>
-    <button type="button" class="ab-btn ab-generate" id="abGenerate">Generate &#10024;</button>
+    <div id="freeViewNote">On the free tier, only <b>3 people</b> can view your link — upgrade for unlimited.</div>
+    <div class="ab-row">
+      <button type="button" class="ab-btn ab-preview" id="abPreview">👁️ Preview</button>
+      <button type="button" class="ab-btn ab-generate" id="abGenerate">Generate &#10024;</button>
+    </div>
   </div>
   <div id="boot"><div class="boot-dot">✦</div><div class="boot-text">opening a little moment…</div></div>
 
@@ -781,7 +787,8 @@
       var FREE_THEME='cream';
       var premiumExpires=0;
       function isPremium(){ return premiumExpires>Date.now(); }
-      function updatePremiumUI(){ document.body.classList.toggle('sj-free', !isPremium()); try{ updateCharLimits(); }catch(e){} }
+      function updatePremiumUI(){ document.body.classList.toggle('sj-free', !isPremium()); try{ updateCharLimits(); }catch(e){}
+        try{ var fn=document.getElementById('freeViewNote'); if(fn){ fn.innerHTML = isPremium() ? '✓ Pro — your link can be viewed by <b>unlimited</b> people.' : 'On the free tier, only <b>3 people</b> can view your link — upgrade for unlimited.'; } }catch(e){} }
       function loadPremium(){
         if(!isSignedIn()||!auth.user||!SB_ON){ updatePremiumUI(); return Promise.resolve(); }
         return sbRpc('sj_premium_status',{ p_user_id:auth.user.id }).then(function(ts){ premiumExpires = ts? (new Date(ts).getTime()||0) : 0; updatePremiumUI(); }).catch(function(){ updatePremiumUI(); });
@@ -2368,6 +2375,7 @@
           applyTheme('cream');
           sbGetLetter(slug).then(function(data){
             if(data && data.blocks){ applyTheme(data.theme||'cream'); enterPlayMode(data, slug); }
+            else if(data && data.locked){ showPlayError('💌 This letter has reached its free viewing limit (3 views). The sender can upgrade SharedJoy to reopen it for everyone.'); }
             else showPlayError('This letter could not be found. It may have been removed.');
           }).catch(function(){ showPlayError('Couldn’t load this letter. Check your connection and try again.'); });
           return;
