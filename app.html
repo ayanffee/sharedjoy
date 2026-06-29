@@ -420,9 +420,9 @@
 
     <header class="mb-5">
       <h1 class="font-serif text-3xl sm:text-4xl text-charcoal/90 leading-tight">Build your letter</h1>
-      <p class="text-charcoal/55 mt-1 text-[0.9rem]">Edit each message, add photos — then hit Generate for a shareable link. (New? Pick a preset for ready-made words.)</p>
+      <p class="text-charcoal/55 mt-1 text-[0.9rem]">Edit each message, add photos — then hit Generate for a shareable link. (New? Pick a template for ready-made words.)</p>
       <ol style="display:flex;flex-wrap:wrap;gap:.5rem;margin:.85rem 0 0;padding:0;list-style:none;font-size:.8rem;color:#3A3438;">
-        <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">1</b>&nbsp; Pick a preset</li>
+        <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">1</b>&nbsp; Pick a template</li>
         <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">2</b>&nbsp; Edit each message</li>
         <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">3</b>&nbsp; Add photos</li>
         <li style="background:#fff;border:1px solid rgba(58,52,56,.12);border-radius:999px;padding:.35rem .8rem;"><b style="color:#C98A8E;">4</b>&nbsp; Generate &amp; share</li>
@@ -435,7 +435,7 @@
       <section class="order-2 lg:order-1">
 
         <div class="mb-5">
-          <label class="field-label">Presets <span style="font-weight:400;color:#C98A8E;text-transform:none;letter-spacing:0;">— optional, ready-made words to start from ✨</span></label>
+          <label class="field-label">Templates <span style="font-weight:400;color:#C98A8E;text-transform:none;letter-spacing:0;">— optional, ready-made words to start from ✨</span></label>
           <div class="select-wrap" id="occasionSelect">
             <button type="button" class="select-trigger" id="selectTrigger" aria-haspopup="listbox" aria-expanded="false">
               <span id="selectValue">— None —</span>
@@ -1295,7 +1295,7 @@
         var el=document.createElement('div'); el.className='eb'+(opts.defer?'':' enter');
         el.setAttribute('data-id',id); el.setAttribute('data-type', isFinal?'final':'story');
         if (opts.envelope) el.setAttribute('data-envelope','1');
-        var badge = isFinal ? '<span class="eb-badge badge-final">★ Final</span>' : '';
+        var badge = '';
         var title = opts.title || (isFinal?'The Final Card':'Custom Story Block');
         var msgLabel = isFinal ? 'Final Message' : 'Message';
         el.innerHTML =
