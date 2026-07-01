@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex,nofollow" />
+<title>SharedJoy · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{ --cream:#FBF6F0; --char:#3A3438; --rose:#C98A8E; --blush:#E8B4B8; --line:rgba(58,52,56,.12); --green:#4E9A6B; --muted:rgba(58,52,56,.55); }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--cream); color:var(--char); font-family:Inter,system-ui,sans-serif; padding:22px 22px 60px; }
+  h1{ font-family:'Cormorant Garamond',serif; font-weight:700; font-size:2.1rem; margin:0; }
+  .sub{ color:var(--muted); font-size:.9rem; margin:2px 0 16px; }
+  .bar-top{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:18px; }
+  select,button{ font:inherit; padding:8px 14px; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; color:var(--char); }
+  button.primary{ background:var(--char); color:#fff; border-color:var(--char); }
+  .controls{ display:flex; gap:10px; align-items:center; }
+  .kpis{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:14px; }
+  @media(max-width:1000px){ .kpis{ grid-template-columns:repeat(3,1fr); } }
+  @media(max-width:560px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+  .kpi{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+  .kpi .n{ font-size:1.9rem; font-weight:700; line-height:1.1; }
+  .kpi .l{ font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-top:3px; }
+  .kpi .d{ font-size:.74rem; color:var(--green); font-weight:600; margin-top:4px; }
+  .kpi.hot{ background:linear-gradient(135deg,#fff, #FBEFEF); border-color:var(--blush); }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:6px; }
+  @media(max-width:860px){ .grid{ grid-template-columns:1fr; } }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px 18px; overflow:hidden; }
+  .card.full{ grid-column:1 / -1; }
+  .card h2{ font-family:'Cormorant Garamond',serif; font-weight:600; font-size:1.35rem; margin:0 0 12px; }
+  table{ width:100%; border-collapse:collapse; font-size:.85rem; }
+  th{ text-align:left; font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:600; padding:0 6px 7px; border-bottom:1px solid var(--line); }
+  td{ padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:last-child td{ border-bottom:none; }
+  td.c{ text-align:right; color:var(--rose); font-weight:700; white-space:nowrap; }
+  td.mono{ font-variant-numeric:tabular-nums; color:var(--muted); white-space:nowrap; }
+  a{ color:var(--char); text-decoration:none; border-bottom:1px solid var(--line); }
+  a:hover{ color:var(--rose); }
+  .pill{ display:inline-block; font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .pill.on{ background:rgba(78,154,107,.15); color:var(--green); }
+  .pill.off{ background:rgba(58,52,56,.08); color:var(--muted); }
+  .pill.team{ background:rgba(201,138,142,.16); color:var(--rose); }
+  .bararea{ height:6px; background:var(--blush); border-radius:4px; display:inline-block; vertical-align:middle; margin-left:8px; opacity:.6; }
+  .muted{ color:var(--muted); }
+  #msg{ padding:60px 20px; text-align:center; color:var(--muted); }
+  #msg a{ color:var(--rose); }
+  .chartwrap{ position:relative; height:230px; }
+  .stamp{ font-size:.75rem; color:var(--muted); }
+  .sec-title{ font-family:'Cormorant Garamond',serif; font-size:1.1rem; margin:22px 0 8px; color:var(--muted); }
+</style>
+</head>
+<body>
+  <div class="bar-top">
+    <div>
+      <h1>SharedJoy — Command Center</h1>
+      <div class="sub">Everything happening on your platform, live.</div>
+    </div>
+    <div class="controls">
+      Range:
+      <select id="days">
+        <option value="1">Today</option>
+        <option value="7" selected>7 days</option>
+        <option value="30">30 days</option>
+        <option value="90">90 days</option>
+      </select>
+      <button class="primary" id="refresh">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div id="msg">Loading your dashboard…</div>
+
+  <div id="dash" style="display:none;">
+    <div class="kpis" id="kpis"></div>
+    <div class="sec-title">Today so far</div>
+    <div class="kpis" id="today"></div>
+
+    <div class="grid">
+      <div class="card full">
+        <h2>Traffic & activity — last 14 days</h2>
+        <div class="chartwrap"><canvas id="trend"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h2>💌 Newest letters</h2>
+        <table id="recent_letters"></table>
+      </div>
+      <div class="card">
+        <h2>🔥 Most viewed letters</h2>
+        <table id="top_letters"></table>
+      </div>
+
+      <div class="card">
+        <h2>💳 Paid accounts</h2>
+        <table id="premium"></table>
+      </div>
+      <div class="card">
+        <h2>🙋 New sign-ups</h2>
+        <table id="signups"></table>
+      </div>
+
+      <div class="card">
+        <h2>✅ Recent replies</h2>
+        <table id="responses"></table>
+      </div>
+      <div class="card">
+        <h2>👆 What they click</h2>
+        <table id="clicks"></table>
+      </div>
+
+      <div class="card">
+        <h2>📄 Pages viewed</h2>
+        <table id="paths"></table>
+      </div>
+      <div class="card">
+        <h2>⚡ Live activity</h2>
+        <table id="recent_events"></table>
+      </div>
+    </div>
+    <div class="stamp" id="stamp" style="margin-top:16px;"></div>
+  </div>
+
+<script>
+(function(){
+  var U='https://ipkuyipqmeecuhsazuqy.supabase.co', K='sb_publishable_jrV1lI0jaEKhySHiHho51Q_bgWT16oc';
+  var APP='https://sharedjoy.vercel.app/app.html?l=';
+  var msg=document.getElementById('msg'), dash=document.getElementById('dash'), chart=null;
+  function sess(){ try{ return JSON.parse(localStorage.getItem('sj:auth')||'{}'); }catch(e){ return {}; } }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  function num(n){ return (n==null?0:n).toLocaleString(); }
+  function when(ts){ if(!ts) return ''; var d=new Date(ts), now=new Date();
+    if(d.toDateString()===now.toDateString()) return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    return d.toLocaleDateString([], {month:'short',day:'numeric'}); }
+  function kpi(n,l,d,hot){ return '<div class="kpi'+(hot?' hot':'')+'"><div class="n">'+num(n)+'</div><div class="l">'+l+'</div>'+(d?'<div class="d">'+d+'</div>':'')+'</div>'; }
+
+  function rows(el, arr, cols, empty){
+    el.innerHTML='';
+    var head='<tr>'+cols.map(function(c){return '<th'+(c.c?' style="text-align:right"':'')+'>'+c.h+'</th>';}).join('')+'</tr>';
+    if(!arr||!arr.length){ el.innerHTML=head+'<tr><td colspan="'+cols.length+'" class="muted" style="padding:16px 6px">'+(empty||'Nothing yet')+'</td></tr>'; return; }
+    var body=arr.map(function(r){
+      return '<tr>'+cols.map(function(c){ return '<td'+(c.cls?' class="'+c.cls+'"':'')+'>'+c.f(r)+'</td>'; }).join('')+'</tr>';
+    }).join('');
+    el.innerHTML=head+body;
+  }
+
+  async function freshTok(){
+    var s=sess(); if(!s.access_token && !s.refresh_token) return null;
+    try{
+      var r=await fetch(U+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'apikey':K,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});
+      if(r.ok){ var d=await r.json(); if(d.access_token){ try{ localStorage.setItem('sj:auth',JSON.stringify(Object.assign({},s,d))); }catch(e){} return d.access_token; } }
+    }catch(e){}
+    return s.access_token||null;
+  }
+
+  function drawChart(daily){
+    var ctx=document.getElementById('trend'); if(!ctx) return;
+    var labels=daily.map(function(d){return d.day;});
+    if(chart){ chart.destroy(); }
+    chart=new Chart(ctx,{ type:'bar',
+      data:{ labels:labels, datasets:[
+        { type:'line', label:'Visitors', data:daily.map(function(d){return d.visitors;}), borderColor:'#C98A8E', backgroundColor:'#C98A8E', tension:.35, borderWidth:2, pointRadius:2, yAxisID:'y' },
+        { type:'line', label:'Page views', data:daily.map(function(d){return d.pageviews;}), borderColor:'#3A3438', backgroundColor:'#3A3438', tension:.35, borderWidth:2, pointRadius:2, borderDash:[4,3], yAxisID:'y' },
+        { type:'bar', label:'Letters made', data:daily.map(function(d){return d.letters;}), backgroundColor:'rgba(232,180,184,.55)', yAxisID:'y1', borderRadius:4 },
+        { type:'bar', label:'Replies', data:daily.map(function(d){return d.responses;}), backgroundColor:'rgba(78,154,107,.45)', yAxisID:'y1', borderRadius:4 }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ labels:{ font:{family:'Inter'}, usePointStyle:true, boxWidth:8 } } },
+        scales:{ y:{ beginAtZero:true, title:{display:true,text:'Traffic'}, grid:{color:'rgba(58,52,56,.06)'} },
+                 y1:{ beginAtZero:true, position:'right', title:{display:true,text:'Content'}, grid:{drawOnChartArea:false} },
+                 x:{ grid:{display:false} } } }
+    });
+  }
+
+  async function load(){
+    msg.style.display='block'; dash.style.display='none'; msg.textContent='Loading your dashboard…';
+    var tok=await freshTok();
+    if(!tok){ msg.innerHTML='You need to sign in first.<br><br><a href="app.html">Open SharedJoy →</a> sign in as the admin account, then come back and reload.'; return; }
+    var days=document.getElementById('days').value;
+    var r, d;
+    try{
+      r=await fetch(U+'/rest/v1/rpc/sj_admin_overview',{method:'POST',headers:{'apikey':K,'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({p_days:+days})});
+      d=await r.json();
+    }catch(e){ msg.textContent='Network error — try Refresh.'; return; }
+    if(!d){ msg.innerHTML='This page is for the site owner only.<br><br>Sign in as the admin account on the app, then reload.'; return; }
+    msg.style.display='none'; dash.style.display='block';
+
+    var t=d.totals||{}, td=d.today||{}, rg=d.range||{};
+    document.getElementById('kpis').innerHTML=
+      kpi(t.users,'Total users','+'+num(rg.new_users)+' in range')+
+      kpi(t.letters,'Letters made','+'+num(rg.new_letters)+' in range')+
+      kpi(t.views,'Total letter views')+
+      kpi(t.responses,'Replies received','+'+num(rg.responses)+' in range')+
+      kpi(t.active_premium,'Paid accounts',null,true)+
+      kpi(t.events,'Events tracked');
+
+    document.getElementById('today').innerHTML=
+      kpi(td.visitors,'Visitors')+
+      kpi(td.pageviews,'Page views')+
+      kpi(td.new_users,'New sign-ups')+
+      kpi(td.new_letters,'New letters')+
+      kpi(td.new_responses,'New replies')+
+      kpi(rg.clicks,'Clicks (range)');
+
+    drawChart(d.daily||[]);
+
+    rows(document.getElementById('recent_letters'), d.recent_letters, [
+      { h:'Letter', f:function(r){ return '<a href="'+APP+encodeURIComponent(r.slug)+'" target="_blank">'+esc(r.name)+'</a>'; } },
+      { h:'Creator', f:function(r){ return '<span class="muted">'+esc(r.creator||'guest')+'</span>'; } },
+      { h:'Views', c:true, cls:'c', f:function(r){ return num(r.views); } },
+      { h:'When', cls:'mono', f:function(r){ return when(r.created_at); } }
+    ]);
+
+    rows(document.getElementById('top_letters'), d.top_letters, [
+      { h:'Letter', f:function(r){ return '<a href="'+APP+encodeURIComponent(r.slug)+'" target="_blank">'+esc(r.name)+'</a>'; } },
+      { h:'Creator', f:function(r){ return '<span class="muted">'+esc(r.creator||'guest')+'</span>'; } },
+      { h:'Views', c:true, cls:'c', f:function(r){ return num(r.views); } }
+    ]);
+
+    rows(document.getElementById('premium'), d.premium, [
+      { h:'Account', f:function(r){ return esc(r.email||'—'); } },
+      { h:'Tier', f:function(r){ var cl=r.tier==='team'?'team':(r.active?'on':'off'); return '<span class="pill '+cl+'">'+esc(r.tier)+'</span>'; } },
+      { h:'Status', f:function(r){ return r.active?'<span class="pill on">active</span>':'<span class="pill off">expired</span>'; } },
+      { h:'Renews/expires', cls:'mono', f:function(r){ return when(r.expires_at); } }
+    ], 'No paid accounts yet');
+
+    rows(document.getElementById('signups'), d.recent_signups, [
+      { h:'Email', f:function(r){ return esc(r.email||'—'); } },
+      { h:'Joined', cls:'mono', f:function(r){ return when(r.created_at); } }
+    ]);
+
+    rows(document.getElementById('responses'), d.recent_responses, [
+      { h:'Letter', f:function(r){ return '<a href="'+APP+encodeURIComponent(r.slug)+'" target="_blank">'+esc(r.slug)+'</a>'; } },
+      { h:'Question', f:function(r){ return '<span class="muted">'+esc(r.question||'')+'</span>'; } },
+      { h:'Answer', f:function(r){ return '<b>'+esc(r.choice||'')+'</b>'; } },
+      { h:'When', cls:'mono', f:function(r){ return when(r.created_at); } }
+    ]);
+
+    var topc=Math.max.apply(null,(d.top_clicks||[]).map(function(x){return +x.c||0;}))||1;
+    rows(document.getElementById('clicks'), d.top_clicks, [
+      { h:'Button / link', f:function(r){ var w=Math.round(((+r.c||0)/topc)*60); return esc(r.label)+'<span class="bararea" style="width:'+w+'px"></span>'; } },
+      { h:'Clicks', c:true, cls:'c', f:function(r){ return num(r.c); } }
+    ]);
+
+    var topp=Math.max.apply(null,(d.by_path||[]).map(function(x){return +x.c||0;}))||1;
+    rows(document.getElementById('paths'), d.by_path, [
+      { h:'Page', f:function(r){ var w=Math.round(((+r.c||0)/topp)*60); return esc(r.path||'(none)')+'<span class="bararea" style="width:'+w+'px"></span>'; } },
+      { h:'Views', c:true, cls:'c', f:function(r){ return num(r.c); } }
+    ]);
+
+    rows(document.getElementById('recent_events'), d.recent_events, [
+      { h:'Time', cls:'mono', f:function(r){ return new Date(r.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); } },
+      { h:'Event', f:function(r){ return '<b>'+esc(r.name)+'</b>'+(r.label?' <span class="muted">· '+esc(r.label)+'</span>':''); } },
+      { h:'Page', f:function(r){ return '<span class="muted">'+esc(r.path||'')+'</span>'; } }
+    ]);
+
+    document.getElementById('stamp').textContent='Updated '+new Date(d.generated_at).toLocaleString()+' · range: last '+d.range_days+' day(s)';
+  }
+
+  document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('days').addEventListener('change', load);
+  load();
+  setInterval(load, 60000); // auto-refresh every minute
+})();
+</script>
+</body>
+</html>
