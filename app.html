@@ -728,7 +728,7 @@
           })
           .catch(function(err){ if(err&&err.code==='rate_limited') throw err; return sbRpc('sj_create_letter', { p_data:data }); });
       }
-      function sbGetLetter(slug){ return sbRpc('sj_get_letter', { p_slug:slug }); }
+      function sbGetLetter(slug){ var k=null; try{ k=new URLSearchParams(location.search||'').get('k'); }catch(_e){} var args={ p_slug:slug }; if(k){ args.p_key=k; } return sbRpc('sj_get_letter', args); }
       // RPC called AS the signed-in user (so auth.uid() resolves). Needed for per-account usage.
       function sbRpcAuthed(fn,args){ var tok=(auth&&auth.session&&auth.session.access_token)||SB_KEY; return fetch(SB_URL+'/rest/v1/rpc/'+fn, { method:'POST', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+tok, 'Content-Type':'application/json' }, body:JSON.stringify(args||{}) }).then(function(r){ return r.ok?(r.status===204?null:r.json()):null; }); }
       function sbSubmitRSVP(slug,q,c){ return sbRpc('sj_submit_rsvp', { p_slug:slug, p_question:q, p_choice:c }); }

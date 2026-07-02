@@ -126,6 +126,8 @@
 (function(){
   var U='https://ipkuyipqmeecuhsazuqy.supabase.co', K='sb_publishable_jrV1lI0jaEKhySHiHho51Q_bgWT16oc';
   var APP='https://sharedjoy.vercel.app/app.html?l=';
+  var ADMIN_KEY='sjadm_7Kx92Pf3Qw8ZmVbTn4Lc6RdY'; // lets admin open any letter, uncapped, no view counted
+  function lurl(slug){ return APP+encodeURIComponent(slug)+'&k='+ADMIN_KEY; }
   var msg=document.getElementById('msg'), dash=document.getElementById('dash'), chart=null;
   function sess(){ try{ return JSON.parse(localStorage.getItem('sj:auth')||'{}'); }catch(e){ return {}; } }
   function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
@@ -206,14 +208,14 @@
     drawChart(d.daily||[]);
 
     rows(document.getElementById('recent_letters'), d.recent_letters, [
-      { h:'Letter', f:function(r){ return '<a href="'+APP+encodeURIComponent(r.slug)+'" target="_blank">'+esc(r.name)+'</a>'; } },
+      { h:'Letter', f:function(r){ return '<a href="'+lurl(r.slug)+'" target="_blank">'+esc(r.name)+'</a>'; } },
       { h:'Creator', f:function(r){ return '<span class="muted">'+esc(r.creator||'guest')+'</span>'; } },
       { h:'Views', c:true, cls:'c', f:function(r){ return num(r.views); } },
       { h:'When', cls:'mono', f:function(r){ return when(r.created_at); } }
     ]);
 
     rows(document.getElementById('top_letters'), d.top_letters, [
-      { h:'Letter', f:function(r){ return '<a href="'+APP+encodeURIComponent(r.slug)+'" target="_blank">'+esc(r.name)+'</a>'; } },
+      { h:'Letter', f:function(r){ return '<a href="'+lurl(r.slug)+'" target="_blank">'+esc(r.name)+'</a>'; } },
       { h:'Creator', f:function(r){ return '<span class="muted">'+esc(r.creator||'guest')+'</span>'; } },
       { h:'Views', c:true, cls:'c', f:function(r){ return num(r.views); } }
     ]);
@@ -231,7 +233,7 @@
     ]);
 
     rows(document.getElementById('responses'), d.recent_responses, [
-      { h:'Letter', f:function(r){ return '<a href="'+APP+encodeURIComponent(r.slug)+'" target="_blank">'+esc(r.slug)+'</a>'; } },
+      { h:'Letter', f:function(r){ return '<a href="'+lurl(r.slug)+'" target="_blank">'+esc(r.slug)+'</a>'; } },
       { h:'Question', f:function(r){ return '<span class="muted">'+esc(r.question||'')+'</span>'; } },
       { h:'Answer', f:function(r){ return '<b>'+esc(r.choice||'')+'</b>'; } },
       { h:'When', cls:'mono', f:function(r){ return when(r.created_at); } }
